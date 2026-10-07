@@ -21,7 +21,7 @@ FAILURE_STATUSES = {
     google.cloud.dataproc_v1.types.jobs.JobStatus.State.ERROR,
     google.cloud.dataproc_v1.types.jobs.JobStatus.State.ATTEMPT_FAILURE,
 }
-SEQR_PIPELINE_RUNNER_BUILD = f'gs://seqr-pipeline-runner-builds/{Env.DEPLOYMENT_TYPE}/{Env.PIPELINE_RUNNER_APP_VERSION}'
+SEQR_PIPELINE_RUNNER_BUILD = f'{Env.PIPELINE_RUNNER_BUILD_BASE}/{Env.DEPLOYMENT_TYPE}/{Env.PIPELINE_RUNNER_APP_VERSION}'
 TIMEOUT_S = 172800  # 2 days
 
 logger = get_logger(__name__)

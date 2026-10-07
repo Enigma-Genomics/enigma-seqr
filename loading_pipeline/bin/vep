@@ -4,7 +4,17 @@ set -eux
 
 REFERENCE_GENOME=$1
 VEP_REFERENCE_DATASETS_DIR=${VEP_REFERENCE_DATASETS_DIR:-/var/seqr/vep-reference-data}
-VEP_DOCKER_IMAGE="gcr.io/seqr-project/vep-docker-image"
+VEP_DOCKER_IMAGE=${VEP_DOCKER_IMAGE:-gcr.io/seqr-project/vep-docker-image}
+VEP_IMAGE_URI_OVERRIDE=${VEP_IMAGE_URI:-}
+if [[ -z "${VEP_IMAGE_URI:-}" && -f /etc/seqr-vep-image ]]; then
+  VEP_IMAGE_URI=$(cat /etc/seqr-vep-image)
+  VEP_IMAGE_URI_OVERRIDE=$VEP_IMAGE_URI
+fi
+VEP_IMAGE_URI=${VEP_IMAGE_URI:-$VEP_DOCKER_IMAGE:$REFERENCE_GENOME}
+if [[ -n "${VEP_IMAGE_URI_OVERRIDE:-}" && ! "$VEP_IMAGE_URI" =~ @sha256:[0-9a-f]{64}$ ]]; then
+  echo "Custom VEP_IMAGE_URI must use an immutable digest" >&2
+  exit 1
+fi
 
 case $REFERENCE_GENOME in
   GRCh38)
@@ -17,5 +27,5 @@ case $REFERENCE_GENOME in
 esac
 
 shift # Remove the REFERENCE_GENOME arg.
-docker run --platform linux/amd64 -i -v "$VEP_REFERENCE_DATASETS_DIR"/"$REFERENCE_GENOME":/opt/vep/.vep/:ro $VEP_DOCKER_IMAGE:"$REFERENCE_GENOME" \
+docker run --platform linux/amd64 -i -v "$VEP_REFERENCE_DATASETS_DIR"/"$REFERENCE_GENOME":/opt/vep/.vep/:ro "$VEP_IMAGE_URI" \
   /opt/vep/src/ensembl-vep/vep "$@"

@@ -18,9 +18,9 @@ from loading_pipeline.lib.tasks.dataproc.misc import get_cluster_name
 
 DEBIAN_IMAGE = '2.3.17-debian12'
 DISK_SIZE_GB = 600
-DISK_TYPE = 'hyperdisk-balanced'
+DISK_TYPE = Env.GCLOUD_DATAPROC_BOOT_DISK_TYPE
 HAIL_VERSION = hl.version().split('-')[0]
-INSTANCE_TYPE = 'n4-highmem-8'
+INSTANCE_TYPE = Env.GCLOUD_DATAPROC_MACHINE_TYPE
 PKGS = '|'.join(
     [
         x.replace('gnomad_qc @ ', '').replace('onnxconverter-common @ ', '')
@@ -57,10 +57,13 @@ def get_cluster_config(
                     'REFERENCE_GENOME': reference_genome.value,
                     'PIPELINE_RUNNER_APP_VERSION': Env.PIPELINE_RUNNER_APP_VERSION,
                     'REFERENCE_DATASETS_DIR': Env.REFERENCE_DATASETS_DIR,
+                    'PIPELINE_RUNNER_BUILD_BASE': Env.PIPELINE_RUNNER_BUILD_BASE,
+                    'VEP_IMAGE_URI': Env.VEP_IMAGE_URI if reference_genome == ReferenceGenome.GRCh38 else '',
+                    'VEP_UTR_PLUGIN_SHA256': Env.VEP_UTR_PLUGIN_SHA256,
                 },
                 'internal_ip_only': False,  # Recent change with 2.2 dataproc images.
                 'service_account': service_account_credentials.service_account_email,
-                'service_account_scopes': service_account_credentials.scopes,
+                'service_account_scopes': ['https://www.googleapis.com/auth/cloud-platform'],
             },
             'master_config': {
                 'num_instances': 1,
@@ -97,8 +100,8 @@ def get_cluster_config(
                     'spark:spark.driver.extraJavaOptions': '-Xss16M',
                     'spark:spark.executor.extraJavaOptions': '-Xss16M',
                     'hdfs:dfs.replication': '1',
-                    'dataproc:dataproc.logging.stackdriver.enable': 'false',
-                    'dataproc:dataproc.monitoring.stackdriver.enable': 'false',
+                    'dataproc:dataproc.logging.stackdriver.enable': 'true',
+                    'dataproc:dataproc.monitoring.stackdriver.enable': 'true',
                     'spark:spark.driver.memory': '41g',
                     'yarn:yarn.nodemanager.resource.memory-mb': '50585',
                     'yarn:yarn.scheduler.maximum-allocation-mb': '25292',
@@ -118,12 +121,16 @@ def get_cluster_config(
                     'spark-env:HAIL_TMP_DIR': Env.HAIL_TMP_DIR,
                     'spark-env:LOADING_DATASETS_DIR': Env.LOADING_DATASETS_DIR,
                     'spark-env:REFERENCE_DATASETS_DIR': Env.REFERENCE_DATASETS_DIR,
+                    'spark-env:VEP_IMAGE_URI': Env.VEP_IMAGE_URI if reference_genome == ReferenceGenome.GRCh38 else '',
                     'spark-env:SAMPLE_TYPE_VALIDATION_EXCLUDED_PROJECTS': ','.join(
                         Env.SAMPLE_TYPE_VALIDATION_EXCLUDED_PROJECTS,
                     ),
                 },
             },
-            'lifecycle_config': {'idle_delete_ttl': {'seconds': 1200}},
+            'lifecycle_config': {
+                'idle_delete_ttl': {'seconds': Env.DATAPROC_IDLE_DELETE_TTL},
+                **({'auto_delete_ttl': {'seconds': Env.DATAPROC_AUTO_DELETE_TTL}} if Env.DATAPROC_AUTO_DELETE_TTL else {}),
+            },
             'encryption_config': {},
             'autoscaling_config': {},
             'endpoint_config': {},
@@ -134,7 +141,7 @@ def get_cluster_config(
                     'execution_timeout': {'seconds': 1200},
                 },
                 {
-                    'executable_file': f'gs://seqr-pipeline-runner-builds/{Env.DEPLOYMENT_TYPE}/{Env.PIPELINE_RUNNER_APP_VERSION}/bin/dataproc_vep_init.bash',
+                    'executable_file': f'{Env.PIPELINE_RUNNER_BUILD_BASE}/{Env.DEPLOYMENT_TYPE}/{Env.PIPELINE_RUNNER_APP_VERSION}/bin/dataproc_vep_init.bash',
                     'execution_timeout': {'seconds': 1200},
                 },
             ],
