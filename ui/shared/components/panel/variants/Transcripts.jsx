@@ -6,6 +6,7 @@ import { Label, Header, Table, Segment } from 'semantic-ui-react'
 
 import { getGenesById, getTranscriptsById, getFamiliesByGuid, getProjectsByGuid } from 'redux/selectors'
 import { updateVariantMainTranscript } from 'redux/rootReducer'
+import { getUtrConsequences } from '../../../utils/utrUtils'
 import { VerticalSpacer } from '../../Spacers'
 import DispatchRequestButton from '../../buttons/DispatchRequestButton'
 import ShowGeneModal from '../../buttons/ShowGeneModal'
@@ -158,8 +159,8 @@ const transcriptIdDetails = (transcript, variant, { transcriptsById, project, up
 
 const transcriptConsequenceDetails = ({ utrannotator, spliceregion }) => (
   <div>
-    {utrannotator?.fiveutrConsequence && <HeaderLabel>UTRAnnotator:</HeaderLabel>}
-    {utrannotator?.fiveutrConsequence}
+    {getUtrConsequences(utrannotator).length > 0 && <HeaderLabel>UTRAnnotator:</HeaderLabel>}
+    {getUtrConsequences(utrannotator).join('; ')}
     {spliceregion?.extended_intronic_splice_region_variant && (
       <HeaderLabel>Extended Intronic Splice Region</HeaderLabel>
     )}

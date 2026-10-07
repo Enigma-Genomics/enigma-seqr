@@ -37,6 +37,7 @@ import {
   EXTENDED_INTRONIC_DESCRIPTION,
 } from '../../../utils/constants'
 import { camelcaseToTitlecase } from '../../../utils/stringUtils'
+import { getUtrEffects, getUtrConsequences } from '../../../utils/utrUtils'
 
 const OverlappedIntervalLabels = React.memo(({ groupedIntervals, variant, getOverlapArgs, getLabels }) => {
   const chromIntervals = groupedIntervals[variant.chrom]
@@ -492,29 +493,41 @@ const UTR_ANNOTATOR_DESCRIPTIONS = {
   type: 'The type of of 5’ UTR ORF, described by one of the following: uORF(with a stop codon in 5’UTR), inframe_oORF (inframe and overlapping with CDS),OutOfFrame_oORF (out of frame and overlapping with CDS)',
 }
 
-const UtrAnnotatorDetail = ({ fiveutrConsequence, fiveutrAnnotation, ...counts }) => (
+const UtrAnnotatorDetail = ({ existingInframeOorfs, existingOutofframeOorfs, existingUorfs, ...utrannotator }) => (
   <Table compact singleLine basic="very">
     <Table.Body>
-      <Table.Row>
-        <Table.HeaderCell textAlign="right" content="5' UTR Consequence" />
-        <Table.Cell content={fiveutrConsequence} />
-      </Table.Row>
-      {Object.entries(counts).map(([field, value]) => (
+      {Object.entries({ existingInframeOorfs, existingOutofframeOorfs, existingUorfs }).map(([field, value]) => (
         <Table.Row key={field}>
           <Table.HeaderCell textAlign="right" content={camelcaseToTitlecase(field)} />
           <Table.Cell content={value} />
         </Table.Row>
       ))}
-      {Object.entries(fiveutrAnnotation).filter(e => e[1] !== null).map(([field, value]) => (
-        <Table.Row key={field}>
-          <Table.HeaderCell textAlign="right">
-            {camelcaseToTitlecase(field)}
-            {UTR_ANNOTATOR_DESCRIPTIONS[field] && (
-              <Popup trigger={<HelpIcon color="black" />} content={UTR_ANNOTATOR_DESCRIPTIONS[field]} flowing />
-            )}
-          </Table.HeaderCell>
-          <Table.Cell content={value} />
-        </Table.Row>
+      {getUtrEffects(utrannotator).map(effect => (
+        <React.Fragment key={effect.effect || effect.consequence}>
+          <Table.Row>
+            <Table.HeaderCell textAlign="right" content="5' UTR Consequence" />
+            <Table.Cell content={effect.consequence} />
+          </Table.Row>
+          {(effect.annotations || []).map(({ index, annotation }) => (
+            <React.Fragment key={index}>
+              <Table.Row>
+                <Table.HeaderCell textAlign="right" content="Evidence entry" />
+                <Table.Cell content={index} />
+              </Table.Row>
+              {Object.entries(annotation || {}).filter(e => e[1] !== null).map(([field, value]) => (
+                <Table.Row key={field}>
+                  <Table.HeaderCell textAlign="right">
+                    {camelcaseToTitlecase(field)}
+                    {UTR_ANNOTATOR_DESCRIPTIONS[field] && (
+                      <Popup trigger={<HelpIcon color="black" />} content={UTR_ANNOTATOR_DESCRIPTIONS[field]} flowing />
+                    )}
+                  </Table.HeaderCell>
+                  <Table.Cell content={String(value)} />
+                </Table.Row>
+              ))}
+            </React.Fragment>
+          ))}
+        </React.Fragment>
       ))}
     </Table.Body>
   </Table>
@@ -523,6 +536,10 @@ const UtrAnnotatorDetail = ({ fiveutrConsequence, fiveutrAnnotation, ...counts }
 UtrAnnotatorDetail.propTypes = {
   fiveutrConsequence: PropTypes.string,
   fiveutrAnnotation: PropTypes.object,
+  fiveutrEffectsJson: PropTypes.string,
+  existingInframeOorfs: PropTypes.number,
+  existingOutofframeOorfs: PropTypes.number,
+  existingUorfs: PropTypes.number,
 }
 
 const Annotations = React.memo(({ variant, mainGeneId, showMainGene, transcriptsById }) => {
@@ -647,7 +664,7 @@ const Annotations = React.memo(({ variant, mainGeneId, showMainGene, transcripts
           <Popup trigger={<HelpIcon />} content={EXTENDED_INTRONIC_DESCRIPTION} />
         </div>
       )}
-      {mainTranscript.utrannotator?.fiveutrConsequence && (
+      {getUtrConsequences(mainTranscript.utrannotator).length > 0 && (
         <div>
           <b>UTRAnnotator: &nbsp;</b>
           <Modal
@@ -655,7 +672,7 @@ const Annotations = React.memo(({ variant, mainGeneId, showMainGene, transcripts
             title="UTRAnnotator"
             trigger={
               <ButtonLink>
-                {mainTranscript.utrannotator.fiveutrConsequence.replace('5_prime_UTR_', '').replace('_variant', '').replace(/_/g, ' ')}
+                {getUtrConsequences(mainTranscript.utrannotator).map(c => c.replace('5_prime_UTR_', '').replace('_variant', '').replace(/_/g, ' ')).join('; ')}
               </ButtonLink>
             }
           >

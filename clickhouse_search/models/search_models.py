@@ -96,6 +96,7 @@ class BaseVariantsSnvIndel(BaseVariantsGRCh37SnvIndel):
     SORTED_TRANSCRIPT_CONSQUENCES_FIELDS = sorted([
         ('alphamissensePathogenicity', models.DecimalField(null=True, blank=True, max_digits=9, decimal_places=5)),
         ('extendedIntronicSpliceRegionVariant', models.BoolField(null=True, blank=True)),
+        ('fiveutrConsequences', models.ArrayField(models.StringField())),
         ('fiveutrConsequence', models.Enum8Field(null=True, blank=True, return_int=False, choices=[(1, '5_prime_UTR_premature_start_codon_gain_variant'), (2, '5_prime_UTR_premature_start_codon_loss_variant'), (3, '5_prime_UTR_stop_codon_gain_variant'), (4, '5_prime_UTR_stop_codon_loss_variant'), (5, '5_prime_UTR_uORF_frameshift_variant')])),
         ('isManeSelect', models.BoolField(null=True, blank=True)),
         *BaseVariantsGRCh37SnvIndel.SORTED_TRANSCRIPT_CONSQUENCES_FIELDS,
@@ -120,13 +121,13 @@ class VariantsSnvIndel(BaseVariantsSnvIndel):
 
     class Meta:
         db_table = 'GRCh38/SNV_INDEL/variants_memory'
-        engine = EmbeddedRocksDB(0, f'{CLICKHOUSE_IN_MEMORY_DIR}/GRCh38/SNV_INDEL/variants', primary_key='key', flatten_nested=0)
+        engine = EmbeddedRocksDB(0, f'{CLICKHOUSE_IN_MEMORY_DIR}/GRCh38/SNV_INDEL/variants_utr_v1', primary_key='key', flatten_nested=0)
 
 class VariantsDiskSnvIndel(BaseVariantsSnvIndel):
 
     class Meta:
         db_table = 'GRCh38/SNV_INDEL/variants_disk'
-        engine = EmbeddedRocksDB(0, f'{CLICKHOUSE_DATA_DIR}/GRCh38/SNV_INDEL/variants', primary_key='key', flatten_nested=0)
+        engine = EmbeddedRocksDB(0, f'{CLICKHOUSE_DATA_DIR}/GRCh38/SNV_INDEL/variants_utr_v1', primary_key='key', flatten_nested=0)
 
 class BaseVariantsMito(BaseVariants):
     TRANSCRIPTS_FIELDS = [
@@ -513,6 +514,8 @@ class VariantDetailsSnvIndel(FixtureLoadableClickhouseModel):
                 ('type', models.StringField(null=True, blank=True)),
             ], null_if_empty=True)),
             ('fiveutrConsequence', models.StringField(null=True, blank=True)),
+            ('fiveutrConsequences', models.ArrayField(models.StringField())),
+            ('fiveutrEffectsJson', models.StringField(null=True, blank=True)),
         ])),
         *BaseVariantsMito.TRANSCRIPTS_FIELDS,
     ])
@@ -542,7 +545,7 @@ class VariantDetailsSnvIndel(FixtureLoadableClickhouseModel):
 
     class Meta:
         db_table = 'GRCh38/SNV_INDEL/variants/details'
-        engine = EmbeddedRocksDB(0, f'{CLICKHOUSE_DATA_DIR}/GRCh38/SNV_INDEL/variants_details', primary_key='key', flatten_nested=0)
+        engine = EmbeddedRocksDB(0, f'{CLICKHOUSE_DATA_DIR}/GRCh38/SNV_INDEL/variants_details_utr_v1', primary_key='key', flatten_nested=0)
 
 class BaseKeyLookup(FixtureLoadableClickhouseModel):
     variant_id = models.StringField(db_column='variantId', primary_key=True)

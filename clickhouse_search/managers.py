@@ -637,7 +637,9 @@ class VariantsQuerySet(BaseVariantsQuerySet):
                     filter_qs.append(filter_q)
             elif field == UTR_ANNOTATOR_KEY:
                 if value:
-                    transcript_field_filters['fiveutrConsequence'] = (value,  'hasAny({value}, [{field}])')
+                    transcript_field_filters['fiveutrConsequences'] = (value, 'hasAny({value}, {field})')
+                    # Legacy rows still have only the single selected consequence.
+                    transcript_field_filters['fiveutrConsequence'] = (value, 'hasAny({value}, [{field}])')
             elif field == EXTENDED_SPLICE_KEY:
                 if EXTENDED_SPLICE_REGION_CONSEQUENCE in value:
                     transcript_field_filters['extendedIntronicSpliceRegionVariant'] = (1, '{field} = {value}')
