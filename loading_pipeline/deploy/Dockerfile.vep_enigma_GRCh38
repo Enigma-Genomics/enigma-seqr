@@ -1,0 +1,4 @@
+# Audited runtime; replace only the UTR plugin. Build from the application repo root.
+FROM gcr.io/seqr-project/vep-docker-image@sha256:bc2dc75c1016f9cba2d39c91fcfd4c4f2098634f0b5585e2b0a0c7f8d069b4a8
+COPY loading_pipeline/var/vep/plugins/UTRAnnotator.pm /plugins/UTRAnnotator.pm
+LABEL org.enigma.utr-output-contract="all-effects-v1"

@@ -68,6 +68,7 @@ def export_parquet_filterable_transcripts_fields(
             'alphamissensePathogenicity': 'alphamissense.pathogenicity',
             'extendedIntronicSpliceRegionVariant': 'spliceregion.extended_intronic_splice_region_variant',
             'fiveutrConsequence': 'utrannotator.fiveutrConsequence',
+            'fiveutrConsequences': 'utrannotator.fiveutrConsequences',
             'isManeSelect': 'isManeSelect',
         }
     # Parquet export expects all fields sorted alphabetically
