@@ -206,7 +206,6 @@ class ReloadClinvarAllVariantsTest(TestCase):
         for description, review_status, conflicting_pathogenicities, error_message in [
             ("Pathogenic", "unhandled", None, 'Found unexpected review status unhandled'),
             ("Conflicting classifications of pathogenicity", None, "Pathogenic;", 'Failed to correctly parse conflicting pathogenicity counts: Pathogenic;'),
-            ("Conflicting classifications of pathogenicity", None, None, 'Failed to find the conflicting pathogenicities node'),
         ]:
             data = f'''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
             <ClinVarVariationRelease xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -261,6 +260,13 @@ class ReloadClinvarAllVariantsTest(TestCase):
                 'explanation': 'Pathogenic(18); unhandled(1)',
                 'alert_type': 'Conflicting Pathogenicity',
                 'alert_value': 'unhandled',
+            },
+            {
+                'allele_id': 4,
+                'description': 'Conflicting classifications of pathogenicity',
+                'explanation': None,
+                'alert_type': 'Missing Conflicting Pathogenicities',
+                'alert_value': 'Conflicting classifications of pathogenicity',
             },
         ]
         data = WEEKLY_XML_RELEASE_HEADER
@@ -380,8 +386,14 @@ class ReloadClinvarAllVariantsTest(TestCase):
             body=gzip.compress(missing_conflicting_pathogenicities.encode()),
             stream=True,
         )
-        with self.assertRaisesMessage(CommandError, 'Failed to find the conflicting pathogenicities node'):
-            call_command('reload_clinvar_all_variants')
+        call_command('reload_clinvar_all_variants')
+        self.assertEqual(ClinvarAllVariantsSnvIndel.objects.count(), 1)
+        self.assertIn(
+            "- Missing Conflicting Pathogenicities: 'conflicting data from submitters' (Allele ID: 1)",
+            mock_safe_post_to_slack.call_args[0][1],
+        )
+        DataVersions.objects.all().delete()
+        ClinvarAllVariantsSnvIndel.objects.using('clickhouse_write').all().delete()
 
         conflicting_pathogenicities = WEEKLY_XML_RELEASE_HEADER + '''
             <VariationArchive>

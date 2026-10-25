@@ -155,7 +155,12 @@ def parse_conflicting_pathogenicities(
     else:
         return []
     if conflicting_pathogenicities_node is None:
-        raise CommandError('Failed to find the conflicting pathogenicities node')
+        unenumerated_value_alerts.append({
+            'type': 'Missing Conflicting Pathogenicities',
+            'allele_id': allele_id,
+            'value': pathogenicity,
+        })
+        return []
     conflicting_pathogenicities = parse_and_merge_classification_counts(
         conflicting_pathogenicities_node.text
     )
