@@ -177,6 +177,8 @@ class SNVTest(unittest.TestCase):
                         existingInframeOorfs=None,
                         existingOutofframeOorfs=None,
                         existingUorfs=None,
+                        fiveutrConsequences=[],
+                        fiveutrEffectsJson='[]',
                         fiveutrConsequence=None,
                         fiveutrAnnotation=None,
                     ),
@@ -213,6 +215,8 @@ class SNVTest(unittest.TestCase):
                         existingInframeOorfs=None,
                         existingOutofframeOorfs=None,
                         existingUorfs=None,
+                        fiveutrConsequences=[],
+                        fiveutrEffectsJson='[]',
                         fiveutrConsequence=None,
                         fiveutrAnnotation=None,
                     ),
@@ -250,6 +254,19 @@ class SNVTest(unittest.TestCase):
                         existingInframeOorfs=0,
                         existingOutofframeOorfs=1,
                         existingUorfs=0,
+                        fiveutrConsequences=[
+                            '5_prime_UTR_premature_start_codon_loss_variant'
+                        ],
+                        fiveutrEffectsJson=(
+                            '[{"effect":null,"consequence":"5_prime_UTR_premature_start_codon_loss_variant",'
+                            '"annotations":[{"index":"1","annotation":{"type":"OutOfFrame_oORF",'
+                            '"KozakContext":"TTTATGC","KozakStrength":"Weak","DistanceToCDS":"40",'
+                            '"CapDistanceToStart":"20","DistanceToStop":"75","Evidence":"False",'
+                            '"AltStop":null,"AltStopDistanceToCDS":null,"FrameWithCDS":null,'
+                            '"StartDistanceToCDS":null,"newSTOPDistanceToCDS":null,"alt_type":null,'
+                            '"alt_type_length":null,"ref_StartDistanceToCDS":null,"ref_type":null,'
+                            '"ref_type_length":null}}]}]'
+                        ),
                         fiveutrConsequence='5_prime_UTR_premature_start_codon_loss_variant',
                         fiveutrAnnotation=hl.Struct(
                             type='OutOfFrame_oORF',

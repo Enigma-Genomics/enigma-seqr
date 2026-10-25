@@ -222,6 +222,7 @@ class WriteNewVariantsParquetTest(MockedReferenceDatasetsTestCase):
                             'consequenceTerms': ['missense_variant'],
                             'extendedIntronicSpliceRegionVariant': False,
                             'fiveutrConsequence': None,
+                            'fiveutrConsequences': [],
                             'geneId': 'ENSG00000187634',
                             'isManeSelect': True,
                         },

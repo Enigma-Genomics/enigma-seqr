@@ -295,6 +295,8 @@ class WriteNewVariantDetailsParquetTest(MockedDatarootTestCase):
                         'type': 'OutOfFrame_oORF',
                     },
                     'fiveutrConsequence': None,
+                    'fiveutrConsequences': [],
+                    'fiveutrEffectsJson': '[]',
                 },
             },
         )
