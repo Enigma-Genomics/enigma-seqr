@@ -14,6 +14,11 @@ from clickhouse_driver import Client
 from loading_pipeline.lib.core import DatasetType, ReferenceGenome
 from loading_pipeline.lib.core.environment import Env
 from loading_pipeline.lib.logger import get_logger
+from loading_pipeline.lib.misc.key_integrity import (
+    VariantKeyIntegrityError,
+    validate_entry_variant_keys,
+    validate_new_variant_keys,
+)
 from loading_pipeline.lib.misc.retry import retry
 from loading_pipeline.lib.paths import (
     existing_variants_parquet_path,
@@ -1023,7 +1028,7 @@ def atomic_insert_entries(
     finalize_refresh_flow(table_name_builder, project_guids)
 
 
-@retry()
+@retry(non_retryable_exceptions=(VariantKeyIntegrityError,))
 def load_run_variants(
     reference_genome: ReferenceGenome,
     dataset_type: DatasetType,
@@ -1035,6 +1040,11 @@ def load_run_variants(
         reference_genome,
         dataset_type,
         run_id,
+    )
+    validate_new_variant_keys(
+        logged_query,
+        table_name_builder.src_table(ClickHouseTable.KEY_LOOKUP),
+        table_name_builder.dst_table(ClickHouseTable.KEY_LOOKUP),
     )
     for clickhouse_table in ClickHouseTable.for_dataset_type(dataset_type):
         clickhouse_table.insert(
@@ -1051,7 +1061,7 @@ def load_run_variants(
         )
 
 
-@retry()
+@retry(non_retryable_exceptions=(VariantKeyIntegrityError,))
 def load_run_entries(
     reference_genome: ReferenceGenome,
     dataset_type: DatasetType,
@@ -1065,6 +1075,11 @@ def load_run_entries(
         reference_genome,
         dataset_type,
         run_id,
+    )
+    validate_entry_variant_keys(
+        logged_query,
+        table_name_builder.src_table(ClickHouseTable.ENTRIES),
+        table_name_builder.dst_table(ClickHouseTable.KEY_LOOKUP),
     )
     atomic_insert_entries(
         table_name_builder=table_name_builder,

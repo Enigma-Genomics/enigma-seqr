@@ -1,7 +1,6 @@
 import unittest
 from unittest.mock import Mock, patch
 
-from loading_pipeline.lib.core import DatasetType
 from loading_pipeline.lib.misc.retry import retry
 
 
@@ -11,10 +10,10 @@ class TestRetryDecorator(unittest.TestCase):
         mock_func = Mock(return_value='success')
 
         @retry(tries=3, delay=1, backoff=2)
-        def func(d: DatasetType):
+        def func(d: str):
             return mock_func(d)
 
-        result = func(DatasetType.SNV_INDEL)
+        result = func('SNV_INDEL')
         self.assertEqual(result, 'success')
         self.assertEqual(mock_func.call_count, 1)
         mock_sleep.assert_not_called()
@@ -59,11 +58,39 @@ class TestRetryDecorator(unittest.TestCase):
         mock_func = Mock(side_effect=[Exception('fail'), 'success'])
 
         @retry(tries=2, delay=1, backoff=2)
-        def func(d: DatasetType):
+        def func(d: str):
             return mock_func(d)
 
-        func(d=DatasetType.SNV_INDEL)
+        func(d='SNV_INDEL')
         self.assertIn(
             'func args: kwargs:d=SNV_INDEL failed on attempt 1 after 0.00s, retrying in 1 seconds.',
             mock_log.call_args[0][0],
         )
+
+    @patch('time.sleep', return_value=None)
+    def test_non_retryable_exception_stops_immediately(self, mock_sleep):
+        mock_func = Mock(side_effect=ValueError('integrity failure'))
+
+        @retry(non_retryable_exceptions=(ValueError,))
+        def func():
+            return mock_func()
+
+        with self.assertRaisesRegex(ValueError, 'integrity failure'):
+            func()
+        self.assertEqual(mock_func.call_count, 1)
+        mock_sleep.assert_not_called()
+
+    @patch('time.sleep', return_value=None)
+    def test_non_retryable_exception_after_transient_failure(self, mock_sleep):
+        mock_func = Mock(
+            side_effect=[RuntimeError('transient'), ValueError('integrity')],
+        )
+
+        @retry(tries=3, delay=1, non_retryable_exceptions=(ValueError,))
+        def func():
+            return mock_func()
+
+        with self.assertRaisesRegex(ValueError, 'integrity'):
+            func()
+        self.assertEqual(mock_func.call_count, 2)
+        mock_sleep.assert_called_once_with(1)

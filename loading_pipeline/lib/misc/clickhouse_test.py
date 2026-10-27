@@ -33,6 +33,7 @@ from loading_pipeline.lib.misc.clickhouse import (
     replace_project_partitions,
     stage_existing_project_partitions,
 )
+from loading_pipeline.lib.misc.key_integrity import VariantKeyIntegrityError
 from loading_pipeline.lib.paths import (
     new_entries_parquet_path,
     new_variant_details_parquet_path,
@@ -993,6 +994,27 @@ class ClickhouseTest(MockedDatarootTestCase, ClickhouseSchemaTestCase):
                 (10, '10-987654-G-A'),
             ],
         )
+
+    @patch('loading_pipeline.lib.misc.clickhouse.ClickHouseTable.for_dataset_type')
+    @patch('loading_pipeline.lib.misc.clickhouse.validate_new_variant_keys')
+    def test_variant_integrity_failure_precedes_all_imports(self, mock_validate, mock_tables):
+        mock_validate.side_effect = VariantKeyIntegrityError('conflicting keys')
+        with self.assertRaisesRegex(VariantKeyIntegrityError, 'conflicting keys'):
+            load_run_variants(ReferenceGenome.GRCh38, DatasetType.SNV_INDEL, TEST_RUN_ID)
+        mock_validate.assert_called_once()
+        mock_tables.assert_not_called()
+
+    @patch('loading_pipeline.lib.misc.clickhouse.atomic_insert_entries')
+    @patch('loading_pipeline.lib.misc.clickhouse.validate_entry_variant_keys')
+    def test_entry_integrity_failure_precedes_staging(self, mock_validate, mock_insert):
+        mock_validate.side_effect = VariantKeyIntegrityError('ambiguous entry')
+        with self.assertRaisesRegex(VariantKeyIntegrityError, 'ambiguous entry'):
+            load_run_entries(
+                ReferenceGenome.GRCh38, DatasetType.SNV_INDEL, TEST_RUN_ID,
+                ['project_d'], ['family_d1'],
+            )
+        mock_validate.assert_called_once()
+        mock_insert.assert_not_called()
 
     def test_delete_families(self):
         table_name_builder = TableNameBuilder(

@@ -6,7 +6,7 @@ from loading_pipeline.lib.logger import get_logger
 logger = get_logger(__name__)
 
 
-def retry(tries=3, delay=30, backoff=3):
+def retry(tries=3, delay=30, backoff=3, non_retryable_exceptions=()):
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
@@ -24,6 +24,8 @@ def retry(tries=3, delay=30, backoff=3):
                     logger.info(
                         f'{func.__name__} args:{args_str} kwargs:{kwargs_str} succeeded on attempt {attempt} in {duration:.2f}s',
                     )
+                except non_retryable_exceptions:
+                    raise
                 except Exception:
                     duration = time.time() - start_time
                     logger.exception(
