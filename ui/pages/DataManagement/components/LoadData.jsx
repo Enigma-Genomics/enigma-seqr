@@ -1,6 +1,7 @@
 import React from 'react'
 import PropTypes from 'prop-types'
 import { connect } from 'react-redux'
+import queryString from 'query-string'
 import { FormSpy } from 'react-final-form'
 
 import { getUser } from 'redux/selectors'
@@ -168,12 +169,19 @@ const MULTI_DATA_TYPE_LOAD_DATA_PAGES = [MULTI_DATA_TYPE_CALLSET_PAGE, ...ADDITI
 
 const formatSubmitUrl = () => '/api/data_management/load_data'
 
-const LoadData = ({ user }) => (
+// External staging tools may suggest a sample type, but cannot skip validation or submit a load.
+export const initialLoadValues = (search = '') => {
+  const { sampleType } = queryString.parse(search)
+  return [SAMPLE_TYPE_EXOME, SAMPLE_TYPE_GENOME].includes(sampleType) ? { sampleType } : {}
+}
+
+const LoadData = ({ user, location }) => (
   <div>
     {!user.isAnvil && <LoadDataVCFMessage isAnvil={false} />}
     <FormWizard
       pages={user.isAnvil ? MULTI_DATA_TYPE_LOAD_DATA_PAGES : LOAD_DATA_PAGES}
       formatSubmitUrl={formatSubmitUrl}
+      initialValues={initialLoadValues(location?.search)}
       successMessage="Data loading has been triggered"
       noModal
     />
@@ -182,6 +190,7 @@ const LoadData = ({ user }) => (
 
 LoadData.propTypes = {
   user: PropTypes.object,
+  location: PropTypes.object,
 }
 
 const mapStateToProps = state => ({
