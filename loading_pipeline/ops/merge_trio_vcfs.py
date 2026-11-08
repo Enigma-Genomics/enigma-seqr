@@ -437,7 +437,8 @@ def merge(  # noqa: PLR0913 - explicit independent resource limits
                         usage = scratch_usage(staging)
                         peak_staging = max(peak_staging, usage)
                         require(
-                            usage <= max_staging_bytes, 'Staging disk budget exceeded',
+                            usage <= max_staging_bytes,
+                            'Staging disk budget exceeded',
                         )
                         require(
                             shutil.disk_usage(staging).free >= 268435456,

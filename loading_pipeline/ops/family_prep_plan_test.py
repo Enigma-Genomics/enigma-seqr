@@ -33,7 +33,9 @@ class FamilyPlanTest(unittest.TestCase):
             )
             observations[sid] = dict(source, sample_ids=[sid])
         people[0]['metadata'] = {
-            'hpo_present': ['HP:0000001'], 'onset_age': 'C', 'expected_inheritance': ['R'],
+            'hpo_present': ['HP:0000001'],
+            'onset_age': 'C',
+            'expected_inheritance': ['R'],
         }
         self.m = {
             'schema_version': 2,

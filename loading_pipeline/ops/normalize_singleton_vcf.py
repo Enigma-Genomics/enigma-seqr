@@ -14,13 +14,26 @@ from pathlib import Path
 import pysam
 
 
-def normalize(source, output_dir, expected_sample, sample_id, *, max_source_bytes=2_000_000_000, max_expanded_bytes=536_870_912, max_line_bytes=4_194_304, timeout=1800):  # noqa: C901, PLR0912, PLR0915, PLR0913 - streaming fail-closed checks
+def normalize(  # noqa: C901, PLR0912, PLR0913, PLR0915 - streaming fail-closed checks
+    source,
+    output_dir,
+    expected_sample,
+    sample_id,
+    *,
+    max_source_bytes=2_000_000_000,
+    max_expanded_bytes=536_870_912,
+    max_line_bytes=4_194_304,
+    timeout=1800,
+):
     """Write only to a NEW directory; failures leave artifacts for inspection, not use."""
     source, output_dir = Path(source), Path(output_dir)
     if source.stat().st_size > max_source_bytes:
         msg = 'Source exceeds configured byte limit'
         raise ValueError(msg)
-    if not isinstance(expected_sample, str) or not re.fullmatch(r'[^\s]{1,200}', expected_sample):
+    if not isinstance(expected_sample, str) or not re.fullmatch(
+        r'[^\s]{1,200}',
+        expected_sample,
+    ):
         msg = 'Invalid source sample identifier'
         raise ValueError(msg)
     started = time.monotonic()
@@ -28,7 +41,8 @@ def normalize(source, output_dir, expected_sample, sample_id, *, max_source_byte
     primary_contig_verified = False
     for value in (sample_id,):
         if not isinstance(value, str) or not re.fullmatch(
-            r'[A-Za-z0-9][A-Za-z0-9_.-]{0,127}', value,
+            r'[A-Za-z0-9][A-Za-z0-9_.-]{0,127}',
+            value,
         ):
             msg = 'Invalid sample identifier'
             raise ValueError(msg)
@@ -49,7 +63,11 @@ def normalize(source, output_dir, expected_sample, sample_id, *, max_source_byte
                 break
             line_size = len(line.encode('utf-8'))
             expanded_bytes += line_size
-            if line_size > max_line_bytes or expanded_bytes > max_expanded_bytes or time.monotonic() - started > timeout:
+            if (
+                line_size > max_line_bytes
+                or expanded_bytes > max_expanded_bytes
+                or time.monotonic() - started > timeout
+            ):
                 msg = 'VCF exceeds configured line, expanded-byte or time limit'
                 raise ValueError(msg)
             if line.startswith('##contig='):
@@ -61,7 +79,15 @@ def normalize(source, output_dir, expected_sample, sample_id, *, max_source_byte
                     primary_contig_verified = True
             if line.startswith('##reference='):
                 reference = line.strip().split('=', 1)[1]
-                if reference.rsplit('/', 1)[-1] not in ('GRCh38', 'hg38', 'GRCh38.fa', 'GRCh38.fasta', 'hg38.fa', 'hg38.fasta', 'Homo_sapiens_assembly38.fasta'):
+                if reference.rsplit('/', 1)[-1] not in (
+                    'GRCh38',
+                    'hg38',
+                    'GRCh38.fa',
+                    'GRCh38.fasta',
+                    'hg38.fa',
+                    'hg38.fasta',
+                    'Homo_sapiens_assembly38.fasta',
+                ):
                     msg = 'Requires explicit validated GRCh38 reference'
                     raise ValueError(msg)
                 reference_seen = True
@@ -87,7 +113,10 @@ def normalize(source, output_dir, expected_sample, sample_id, *, max_source_byte
                 if len(fields) != 10:
                     msg = 'Invalid sample column count'
                     raise ValueError(msg)
-                if any(a.startswith('<') or a == '*' or '[' in a or ']' in a for a in fields[4].split(',')):
+                if any(
+                    a.startswith('<') or a == '*' or '[' in a or ']' in a
+                    for a in fields[4].split(',')
+                ):
                     msg = 'Only final SNV/indel VCFs supported; no gVCF or symbolic alleles'
                     raise ValueError(msg)
                 formats, values = fields[8].split(':'), fields[9].split(':')
@@ -105,7 +134,11 @@ def normalize(source, output_dir, expected_sample, sample_id, *, max_source_byte
                         msg,
                     )
                 max_allele = 0 if fields[4] == '.' else len(fields[4].split(','))
-                if any(int(allele) > max_allele for allele in re.split(r'[/|]', gt) if allele != '.'):
+                if any(
+                    int(allele) > max_allele
+                    for allele in re.split(r'[/|]', gt)
+                    if allele != '.'
+                ):
                     msg = 'Genotype allele index outside ALT range'
                     raise ValueError(msg)
                 records += 1

@@ -21,7 +21,8 @@ def require(condition, message):
 
 def identifier(value):
     return isinstance(value, str) and re.fullmatch(
-        r'[A-Za-z0-9][A-Za-z0-9_.-]{0,127}', value,
+        r'[A-Za-z0-9][A-Za-z0-9_.-]{0,127}',
+        value,
     )
 
 
@@ -40,12 +41,14 @@ def prep_plan(manifest, observed_sources):  # noqa: PLR0915 - explicit contract 
     require(manifest.get('genome_version') == '38', 'Only GRCh38 validated')
     require(manifest.get('sample_type') in ('WES', 'WGS'), 'Invalid sample_type')
     require(
-        manifest.get('dataset_type', 'SNV_INDEL') == 'SNV_INDEL', 'Unsupported dataset',
+        manifest.get('dataset_type', 'SNV_INDEL') == 'SNV_INDEL',
+        'Unsupported dataset',
     )
     require(manifest.get('manual_load_required') is True, 'Manual Load Data required')
     people = manifest.get('individuals')
     require(
-        isinstance(people, list) and len(people) == 3, 'Requires exactly three people',
+        isinstance(people, list) and len(people) == 3,
+        'Requires exactly three people',
     )
     require(all(isinstance(p, dict) for p in people), 'Invalid individuals')
     require(
@@ -91,7 +94,8 @@ def prep_plan(manifest, observed_sources):  # noqa: PLR0915 - explicit contract 
         require(isinstance(observed, dict), f'{sid}: invalid observation')
         for field in ('bucket', 'path', 'generation'):
             require(
-                observed.get(field) == source[field], f'{sid}: source {field} mismatch',
+                observed.get(field) == source[field],
+                f'{sid}: source {field} mismatch',
             )
         require(
             observed.get('sample_ids') == [source['vcf_sample_id']],
