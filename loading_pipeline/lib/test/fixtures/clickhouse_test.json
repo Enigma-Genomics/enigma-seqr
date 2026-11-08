@@ -359,8 +359,8 @@
         "fields": {
             "key": 3,
             "sorted_transcript_consequences": [
-                [null, null, [], null, null, "ENSG00000141510", null],
-                [null, null, [], null, null, "ENSG00000012048", null]
+                [null, null, [], null, null, [], "ENSG00000141510", null],
+                [null, null, [], null, null, [], "ENSG00000012048", null]
             ],
             "sorted_motif_feature_consequences": [],
             "sorted_regulatory_feature_consequences": []
@@ -372,7 +372,7 @@
         "fields": {
             "key": 4,
             "sorted_transcript_consequences": [
-                [null, null, [], null, null, "ENSG00000139618", null]
+                [null, null, [], null, null, [], "ENSG00000139618", null]
             ],
             "sorted_motif_feature_consequences": [],
             "sorted_regulatory_feature_consequences": []
