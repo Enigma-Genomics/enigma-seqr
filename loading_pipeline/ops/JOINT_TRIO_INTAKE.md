@@ -27,14 +27,15 @@ of the exact input bytes):
 
 ```json
 {
-  "schema_version": 1,
-  "kind": "attested_joint_trio",
+  "schema_version": 2,
+  "kind": "attested_joint_trio_identity",
   "family_id": "SYNTH-FAMILY",
   "joint_report_id": "SYNTH-REPORT",
   "genome_version": "38",
   "sample_type": "WGS",
   "dataset_type": "SNV_INDEL",
   "source_sha256": "<64 lowercase hexadecimal characters>",
+  "header_sha256": "<SHA-256 of exact decompressed header bytes through #CHROM>",
   "joint_genotyping_attestation": {
     "confirmed": true,
     "authority": "user_confirmed",
@@ -42,9 +43,9 @@ of the exact input bytes):
     "reference": "synthetic-run-record"
   },
   "individuals": [
-    {"role":"proband", "source_sample_id":"CHILD", "sample_id":"SYNTH-P", "accession_id":"SYNTH-AP", "father_id":"SYNTH-F", "mother_id":"SYNTH-M", "sex":"U", "affected":"U", "metadata":{"hpo_present":[], "hpo_absent":[]}},
-    {"role":"mother", "source_sample_id":"MOM", "sample_id":"SYNTH-M", "accession_id":"SYNTH-AM", "father_id":null, "mother_id":null, "sex":"U", "affected":"U", "metadata":{"hpo_present":[], "hpo_absent":[]}},
-    {"role":"father", "source_sample_id":"DAD", "sample_id":"SYNTH-F", "accession_id":"SYNTH-AF", "father_id":null, "mother_id":null, "sex":"U", "affected":"U", "metadata":{"hpo_present":[], "hpo_absent":[]}}
+    {"role":"proband", "source_sample_id":"CHILD", "sample_id":"SYNTH-P", "accession_id":"SYNTH-AP", "father_id":"SYNTH-F", "mother_id":"SYNTH-M"},
+    {"role":"mother", "source_sample_id":"MOM", "sample_id":"SYNTH-M", "accession_id":"SYNTH-AM", "father_id":null, "mother_id":null},
+    {"role":"father", "source_sample_id":"DAD", "sample_id":"SYNTH-F", "accession_id":"SYNTH-AF", "father_id":null, "mother_id":null}
   ]
 }
 ```
@@ -54,9 +55,13 @@ unique within each category, case-sensitive ASCII identifiers. Family and report
 IDs are separately pinned as CLI arguments and must match the manifest and differ
 from each other. This is consistency validation, not allocation/reservation of
 an identity in any downstream system. Roles never imply sex or sample order.
-Sex accepts M/F/U and affected accepts A/N/U. Metadata is retained per person;
-HPO lists are validated for syntax, duplicates, and contradictory entries.
-Other metadata is retained as an opaque assertion, not clinically validated.
+Normalization accepts only the six explicit identity fields shown per person.
+It rejects sex, affected status, HPO, notes, metadata, and unknown fields rather
+than silently storing them or fabricating U/empty defaults. Clinical review stays
+in the separately versioned family preparation envelope. Both the raw header hash
+and source hash are required. Header SHA-256 covers exact decompressed bytes from
+the first header line through #CHROM inclusive, preserving CRLF/LF; every header
+line must end in LF. No newline normalization or text re-encoding enters that hash.
 
 Example reference evidence for the one-contig synthetic fixture:
 
@@ -130,6 +135,57 @@ Tests include 20,000 synthetic records, lossless annotations/GT preservation,
 source gzip, fresh index despite a stale source index, region retrieval, contract
 and malformed-record rejection, resource limits, index-timeout cleanup, output
 non-overwrite and CLI invocation. No patient data or cloud access is used.
+
+## Identity-only queue and receipt bridge (disabled integration contract)
+
+The backend/pipeline owners coordinate these distinct schemas. The immutable
+normalization queue is **schema_version 1**, kind `normalize_joint_trio`, with
+exactly these fields:
+
+- intake_request_id, source {bucket,path,generation}, header_sha256;
+- joint_report_id, family_id, subject_key;
+- genome_version, sample_type, dataset_type;
+- individuals containing only role, sample_id, accession_id, source_sample_id,
+  mother_id and father_id;
+- joint_genotyping_attestation {confirmed,authority,reference,confirmed_by}.
+
+The intake_request_id is SHA-256 of recursively sorted-key compact JSON, UTF-8,
+with ensure_ascii=false, excluding only intake_request_id. Family IDs and subject
+keys follow `JR_`/`family:` plus full lowercase SHA-256 of exact validated raw joint
+report ID UTF-8 bytes. This queue does not contain reviewed clinical metadata or
+claim a verified reference. The future worker must obtain its **separately reviewed
+reference dictionary from operator configuration**, never manufacture it from
+header lengths or a staff joint-calling attestation.
+
+The pure `manifest_from_request(request, source_sha256)` bridge validates queue
+shape/fingerprint/pins/derived identity, rejects clinical fields, and returns the
+schema2 local manifest above. The worker must first download the exact pinned
+source generation and independently hash those bytes. It then calls
+`normalize(..., manifest, configured_reference, family_id, joint_report_id)`.
+Full build/provenance/header checks occur in normalize before a valid result can
+be emitted. No cloud download/upload implementation is included in this helper.
+
+Agreed future object paths:
+
+- `seqr-family-normalization-requests/<intake_request_id>.json`
+- `normalized-family/<intake_request_id>/callset.vcf.gz`
+- `normalized-family/<intake_request_id>/callset.vcf.gz.tbi`
+- `normalized-family/<intake_request_id>/result.json`
+
+The future **schema1 normalized receipt** wraps the exact queue under `request`,
+plus intake_request_id, status `normalized`, outputs {vcf,index}, each with exact
+bucket/path/generation/sha256, source_sha256, vcf_sha256, index_sha256, records,
+sample_order, header_sha256 and reference_evidence. It must also retain
+prepared=false, searchable=false, clinical_ready=false, manual_load_required=true,
+calling_history_independently_verified=false, kinship_verified=false and
+sex_verified=false. The local receipt is deliberately `attested_joint_normalized_local_only`;
+only a separately implemented worker that verifies immutable output generations
+may create the wrapped normalized receipt. No private worker is enabled here.
+
+The later schema3 preparation envelope joins independently reviewed sex/affected/
+HPO values to those pinned results. Its revision/request fingerprint is distinct
+from intake_request_id; clinical metadata revisions reuse normalization outputs
+without modifying the identity-only queue or inventing metadata.
 
 ## Remaining gates
 
