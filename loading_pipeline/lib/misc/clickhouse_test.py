@@ -997,10 +997,14 @@ class ClickhouseTest(MockedDatarootTestCase, ClickhouseSchemaTestCase):
 
     @patch('loading_pipeline.lib.misc.clickhouse.ClickHouseTable.for_dataset_type')
     @patch('loading_pipeline.lib.misc.clickhouse.validate_new_variant_keys')
-    def test_variant_integrity_failure_precedes_all_imports(self, mock_validate, mock_tables):
+    def test_variant_integrity_failure_precedes_all_imports(
+        self, mock_validate, mock_tables
+    ):
         mock_validate.side_effect = VariantKeyIntegrityError('conflicting keys')
         with self.assertRaisesRegex(VariantKeyIntegrityError, 'conflicting keys'):
-            load_run_variants(ReferenceGenome.GRCh38, DatasetType.SNV_INDEL, TEST_RUN_ID)
+            load_run_variants(
+                ReferenceGenome.GRCh38, DatasetType.SNV_INDEL, TEST_RUN_ID
+            )
         mock_validate.assert_called_once()
         mock_tables.assert_not_called()
 
@@ -1010,8 +1014,11 @@ class ClickhouseTest(MockedDatarootTestCase, ClickhouseSchemaTestCase):
         mock_validate.side_effect = VariantKeyIntegrityError('ambiguous entry')
         with self.assertRaisesRegex(VariantKeyIntegrityError, 'ambiguous entry'):
             load_run_entries(
-                ReferenceGenome.GRCh38, DatasetType.SNV_INDEL, TEST_RUN_ID,
-                ['project_d'], ['family_d1'],
+                ReferenceGenome.GRCh38,
+                DatasetType.SNV_INDEL,
+                TEST_RUN_ID,
+                ['project_d'],
+                ['family_d1'],
             )
         mock_validate.assert_called_once()
         mock_insert.assert_not_called()

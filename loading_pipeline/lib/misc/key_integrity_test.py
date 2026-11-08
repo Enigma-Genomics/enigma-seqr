@@ -49,12 +49,16 @@ class VariantKeyIntegrityTest(ClickhouseSchemaTestCase):
 
     def validate_variants(self):
         validate_new_variant_keys(
-            self.execute, self.table('source_variants'), self.table('lookup'),
+            self.execute,
+            self.table('source_variants'),
+            self.table('lookup'),
         )
 
     def validate_entries(self):
         validate_entry_variant_keys(
-            self.execute, self.table('source_entries'), self.table('lookup'),
+            self.execute,
+            self.table('source_entries'),
+            self.table('lookup'),
         )
 
     def test_new_mapping(self):
