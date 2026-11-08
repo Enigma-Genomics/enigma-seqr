@@ -8,11 +8,9 @@ from django.test import SimpleTestCase
 class ClickhouseTranscriptFixtureSchemaTests(SimpleTestCase):
     def test_transcript_fixture_values_match_model_fields(self):
         fixture_dir = Path(__file__).parent / 'fixtures'
-        fixture_paths = [
-            fixture_dir / 'clickhouse_search.json',
-            fixture_dir / 'clickhouse_transcripts.json',
-            fixture_dir.parent.parent / 'loading_pipeline' / 'lib' / 'test' / 'fixtures' / 'clickhouse_test.json',
-        ]
+        fixture_paths = sorted(fixture_dir.glob('*.json')) + sorted(
+            (fixture_dir.parent.parent / 'loading_pipeline' / 'lib' / 'test' / 'fixtures').glob('*.json')
+        )
         fixtures = [row for path in fixture_paths for row in json.loads(path.read_text())]
         transcript_rows = 0
         for row in fixtures:
