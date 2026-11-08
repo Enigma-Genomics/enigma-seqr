@@ -42,6 +42,7 @@ def synthetic_family_envelope():
         sample_type='WES',
         dataset_type='SNV_INDEL',
         source=dict(bucket='synthetic', path='fixture.vcf.gz', generation='1'),
+        intake_request_id='d' * 64,
         source_sha256='a' * 64,
         vcf_sha256='b' * 64,
         index_sha256='c' * 64,

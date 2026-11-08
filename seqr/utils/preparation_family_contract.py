@@ -48,6 +48,7 @@ def family_request(envelope):
         'kind': 'normalize_joint_trio',
         'joint_report_id': envelope['joint_report_id'],
         'family_id': envelope['family_id'],
+        'intake_request_id': envelope['intake_request_id'],
         'genome_version': envelope['genome_version'],
         'sample_type': envelope['sample_type'],
         'dataset_type': envelope['dataset_type'],
@@ -116,7 +117,7 @@ def validate_family_envelope(envelope):
         ),
         'Invalid predecessor',
     )
-    for key in ('source_sha256', 'vcf_sha256', 'index_sha256', 'request_id'):
+    for key in ('source_sha256', 'vcf_sha256', 'index_sha256', 'request_id', 'intake_request_id'):
         require(
             isinstance(envelope.get(key), str)
             and re.fullmatch('[a-f0-9]{64}', envelope[key]),

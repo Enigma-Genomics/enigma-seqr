@@ -36,7 +36,9 @@ Exact complete synthetic fixture: `preparation_family_test_utils.synthetic_famil
 The schema is version 3, kind `family_joint_callset`; schema 2 singleton behavior
 must remain unchanged. Fields include:
 
-- joint_report_id, family_id, subject_key, request_id, revision;
+- joint_report_id, family_id, subject_key, intake_request_id, request_id, revision;
+  intake_request_id identifies the pre-normalization queue, while request_id binds
+  the resulting normalized output generations and the intake identity.
 - review_sequence and expected_previous_revision with existing ordered CAS rules;
 - genome_version `38`, sample_type WES/WGS, dataset_type SNV_INDEL;
 - source bucket/path/generation and source_sha256;

@@ -66,6 +66,7 @@ class FamilyContractTest(unittest.TestCase):
             lambda e: e['source'].update(generation='2'),
             lambda e: e.update(source_sha256='d' * 64),
             lambda e: e.update(sample_type='WGS'),
+            lambda e: e.update(intake_request_id='e' * 64),
             lambda e: e['individuals'][0].update(accession_id='OTHER'),
             lambda e: e['individuals'][0].update(source_sample_id='OTHER'),
             lambda e: e['joint_genotyping_attestation'].update(reference='other'),
