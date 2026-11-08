@@ -1,5 +1,5 @@
 # Copyright 2026 Enigma contributors
-# ruff: noqa: C901, PLR0912, PLR0915, PLR2004, PLW2901
+# ruff: noqa: C901, PLR0912, PLR0915, PLR2004
 """Fail-closed offline final-VCF union. This is NOT joint genotyping or clinical QC."""
 
 import argparse
@@ -8,10 +8,13 @@ import hashlib
 import json
 import math
 import re
+import resource
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
+from contextlib import ExitStack
 from pathlib import Path
 
 import pysam
@@ -52,7 +55,12 @@ def check_call(source, result):
             wanted = tuple(None if a is None else source.alleles[a] for a in value)
             actual = tuple(None if a is None else result.alleles[a] for a in got)
             require(wanted == actual, 'GT alleles changed')
-        elif number in ('A', 'R', 'G') and value != (None,):
+        elif number in ('A', 'R', 'G') and value == (None,):
+            require(
+                all(item is None for item in got),
+                f'Missing FORMAT vector changed: {key}',
+            )
+        elif number in ('A', 'R', 'G'):
             old = source.alleles[1:] if number == 'A' else source.alleles
             new = result.alleles[1:] if number == 'A' else result.alleles
             if number == 'G':
@@ -69,7 +77,7 @@ def check_call(source, result):
             require(value == got, f'FORMAT changed: {key}')
 
 
-def _build(manifest, staging, max_records, max_bytes):
+def _build(manifest, staging, max_records, max_bytes, max_expanded_bytes):
     require(pysam.__version__ == '0.23.3', 'Vetted pysam 0.23.3 required')
     require(
         manifest.get('genome_version') in ('GRCh37', 'GRCh38'),
@@ -104,9 +112,10 @@ def _build(manifest, staging, max_records, max_bytes):
     hashes = [digest(p) for p in paths]
     for member, sha in zip(members, hashes, strict=True):
         require(
-            member.get('expected_sha256', sha) == sha, 'Pinned source SHA256 mismatch',
+            member.get('expected_sha256', sha) == sha,
+            'Pinned source SHA256 mismatch',
         )
-    sources, records, contigs, definitions, site_metadata = [], {}, None, {}, {}
+    sources, contigs, definitions = [], None, {}
     counts = []
     expanded_bytes = 0
     for n, (m, path) in enumerate(zip(members, paths, strict=True)):
@@ -115,14 +124,18 @@ def _build(manifest, staging, max_records, max_bytes):
             opener = gzip.open if stream.read(2) == b'\x1f\x8b' else open
         # Preserve all body/header fields, rename only the explicitly pinned sample.
         with opener(path, 'rt') as src, pysam.BGZFile(str(renamed), 'w') as dst:
-            seen, line_count = False, 0
-            for line in src:
+            seen, line_count, header_bytes = False, 0, 0
+            while line := src.readline(1048577):
                 expanded_bytes += len(line.encode())
                 require(
-                    expanded_bytes <= 536870912,
-                    'Expanded input limit exceeded (512 MiB)',
+                    expanded_bytes <= max_expanded_bytes,
+                    'Expanded input limit exceeded',
                 )
                 require(len(line) <= 1048576, 'VCF line limit exceeded')
+                if line.startswith('#'):
+                    require(not seen, 'Header after column header')
+                    header_bytes += len(line.encode())
+                    require(header_bytes <= 16777216, 'Header exceeds 16 MiB limit')
                 if line.startswith('#CHROM\t'):
                     f = line.rstrip('\r\n').split('\t')
                     require(
@@ -180,9 +193,10 @@ def _build(manifest, staging, max_records, max_bytes):
                         'Conflicting header definition',
                     )
                     definitions[category, key] = definition
+            ranks = {name: rank for rank, name in enumerate(vcf.header.contigs)}
             last, count = (-1, -1), 0
             for row in vcf:
-                order = (list(vcf.header.contigs).index(row.contig), row.pos)
+                order = (ranks[row.contig], row.pos)
                 require(
                     order > last,
                     'Unsorted or duplicate source locus; normalize separately',
@@ -222,14 +236,14 @@ def _build(manifest, staging, max_records, max_bytes):
                             len(value) == length,
                             'Malformed allele-vector cardinality',
                         )
-                locus = (row.contig, row.pos)
-                # Scalar INFO must agree at shared loci; allele-dependent INFO cannot be safely combined here.
+                # No scientifically invented aggregate for allele-specific annotations.
+                unsupported = sorted(
+                    k for k in row.info if vcf.header.info[k].number in ('A', 'R', 'G')
+                )
                 require(
-                    all(
-                        vcf.header.info[k].number not in ('A', 'R', 'G')
-                        for k in row.info
-                    ),
-                    'Allele-dependent INFO unsupported; do not drop it, use vetted joint workflow',
+                    not unsupported,
+                    'Allele-dependent INFO needs approved reconciliation policy: '
+                    + ','.join(unsupported),
                 )
                 require(
                     all(('info', k) in definitions for k in row.info),
@@ -239,19 +253,6 @@ def _build(manifest, staging, max_records, max_bytes):
                     all(('filters', k) in definitions for k in row.filter),
                     'Undefined FILTER',
                 )
-                metadata = (
-                    row.ref,
-                    row.id,
-                    row.qual,
-                    tuple(row.filter),
-                    dict(row.info),
-                )
-                require(
-                    locus not in site_metadata or site_metadata[locus] == metadata,
-                    'Conflicting shared-site INFO/REF/ID/QUAL/FILTER; no lossy reconciliation',
-                )
-                site_metadata[locus] = metadata
-                records[m['sample_id'], locus] = row.copy()
                 count += 1
             counts.append(count)
         pysam.tabix_index(str(renamed), preset='vcf')  # Never trust an input index.
@@ -271,34 +272,67 @@ def _build(manifest, staging, max_records, max_bytes):
         catch_stdout=False,
     )
     pysam.tabix_index(str(output), preset='vcf')
-    visited = set()
-    with pysam.VariantFile(str(output)) as vcf:
+    # Merge-join four sorted streams; retain at most one record from each source.
+    # This avoids the former all-record dictionary and all-locus set.
+    ranks = {name: rank for rank, (name, _) in enumerate(contigs)}
+
+    def order(row):
+        return (ranks[row.contig], row.pos) if row is not None else (math.inf, math.inf)
+
+    def metadata(row):
+        return (row.ref, row.id, row.qual, tuple(row.filter), dict(row.info))
+
+    output_count = 0
+    with ExitStack() as stack:
+        readers = [stack.enter_context(pysam.VariantFile(path)) for path in sources]
+        current = [next(reader, None) for reader in readers]
+        vcf = stack.enter_context(pysam.VariantFile(str(output)))
         require(list(vcf.header.samples) == targets, 'Merged sample mismatch')
+        previous = (-1, -1)
         for row in vcf:
-            locus = (row.contig, row.pos)
+            key = order(row)
             require(
-                locus not in visited and locus in site_metadata,
-                'Output duplicated or added locus',
+                key > previous and key == min(order(r) for r in current),
+                'Source locus dropped or output duplicated/added',
             )
-            visited.add(locus)
-            require(
-                (row.ref, row.id, row.qual, tuple(row.filter), dict(row.info))
-                == site_metadata[locus],
-                'Site metadata changed',
-            )
-            for sample in targets:
-                source = records.get((sample, locus))
-                if source is None:
+            previous = key
+            output_count += 1
+            for i, sample in enumerate(targets):
+                source = current[i]
+                if order(source) != key:
                     require(
                         all(a is None for a in row.samples[sample]['GT']),
                         'Absent site became a called genotype',
                     )
                 else:
+                    original, merged = metadata(source), metadata(row)
+                    changed = [
+                        name
+                        for name, before, after in zip(
+                            ('REF', 'ID', 'QUAL', 'FILTER', 'INFO'),
+                            original,
+                            merged,
+                            strict=True,
+                        )
+                        if before != after
+                    ]
+                    if 'INFO' in changed:
+                        changed += [
+                            'INFO/' + key
+                            for key in sorted(set(original[-1]) | set(merged[-1]))
+                            if original[-1].get(key) != merged[-1].get(key)
+                        ]
+                    require(
+                        not changed,
+                        'Conflicting or changed site fields need approved policy: '
+                        + ','.join(changed),
+                    )
                     check_call(source, row)
-    require(visited == set(site_metadata), 'Source locus dropped')
+                    current[i] = next(readers[i], None)
+        require(all(row is None for row in current), 'Source locus dropped')
     with pysam.TabixFile(str(output)) as indexed:
         require(
-            sum(1 for c in indexed.contigs for _ in indexed.fetch(c)) == len(visited),
+            sum(1 for c in indexed.contigs for _ in indexed.fetch(c)) == output_count,
             'Fresh index mismatch',
         )
     require(hashes == [digest(p) for p in paths], 'Source changed during preparation')
@@ -314,7 +348,14 @@ def _build(manifest, staging, max_records, max_bytes):
             {**m, 'sha256': h, 'records': c}
             for m, h, c in zip(members, hashes, counts, strict=True)
         ],
-        'records': len(visited),
+        'records': output_count,
+        'index_records': output_count,
+        'expanded_source_bytes': expanded_bytes,
+        'resource_limits': {
+            'max_records_per_source': max_records,
+            'max_input_bytes': max_bytes,
+            'max_expanded_bytes': max_expanded_bytes,
+        },
         'vcf_sha256': digest(output),
         'index_sha256': digest(str(output) + '.tbi'),
         'qc_limits': [
@@ -330,18 +371,36 @@ def _build(manifest, staging, max_records, max_bytes):
     return receipt
 
 
-def merge(
+def scratch_usage(staging):
+    """Files may disappear between listing and stat as the worker cleans up."""
+    total = 0
+    for path in staging.iterdir():
+        try:
+            total += path.stat().st_size
+        except FileNotFoundError:
+            continue
+    return total
+
+
+def merge(  # noqa: PLR0913 - explicit independent resource limits
     manifest,
     output_dir,
     timeout=1800,
-    max_records=1000000,
+    max_records=20000000,
     max_bytes=2000000000,
+    *,
+    max_expanded_bytes=8589934592,
+    max_staging_bytes=8589934592,
 ):
     """Subprocess bounds wall time; byte/record/line/allele limits bound work. No network."""
     output = Path(output_dir).absolute()
     require(not output.exists(), 'Output must not exist')
     require(
-        timeout > 0 and 0 < max_records <= 1000000 and 0 < max_bytes <= 2000000000,
+        timeout > 0
+        and 0 < max_records <= 20000000
+        and 0 < max_bytes <= 2000000000
+        and 0 < max_expanded_bytes <= 68719476736
+        and 0 < max_staging_bytes <= 68719476736,
         'Invalid resource limits',
     )
     # Reserve output exclusively, never overwrite or touch an existing destination.
@@ -351,25 +410,63 @@ def merge(
             staging = Path(tmp)
             request = staging / 'request.json'
             request.write_text(json.dumps(manifest))
-            result = subprocess.run(  # noqa: S603 - fixed local worker, no shell
-                [
-                    sys.executable,
-                    str(Path(__file__).resolve()),
-                    '--worker',
-                    str(request),
-                    str(staging),
-                    str(max_records),
-                    str(max_bytes),
-                ],
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-                check=False,
-            )
+            command = [
+                sys.executable,
+                str(Path(__file__).resolve()),
+                '--worker',
+                str(request),
+                str(staging),
+                str(max_records),
+                str(max_bytes),
+                str(max_expanded_bytes),
+                str(max_staging_bytes),
+            ]
+            log = staging / 'worker.stderr'
+            start = time.monotonic()
+            peak_staging = 0
+            with log.open('wb') as stderr:
+                process = subprocess.Popen(  # noqa: S603 - fixed local worker; no shell
+                    command,
+                    stdout=subprocess.DEVNULL,
+                    stderr=stderr,
+                )
+                try:
+                    while process.poll() is None:
+                        if time.monotonic() - start >= timeout:
+                            raise subprocess.TimeoutExpired(command, timeout)
+                        usage = scratch_usage(staging)
+                        peak_staging = max(peak_staging, usage)
+                        require(
+                            usage <= max_staging_bytes, 'Staging disk budget exceeded',
+                        )
+                        require(
+                            shutil.disk_usage(staging).free >= 268435456,
+                            'Less than 256 MiB free scratch disk',
+                        )
+                        time.sleep(min(0.05, timeout / 10))
+                finally:
+                    if process.poll() is None:
+                        process.kill()
+                    process.wait()
+            with log.open('rb') as stream:
+                stream.seek(max(0, log.stat().st_size - 4000))
+                error = stream.read().decode(errors='replace')
+            require(process.returncode == 0, 'Trio preparation failed: ' + error)
             require(
-                result.returncode == 0,
-                'Trio preparation failed: ' + result.stderr[-4000:],
+                scratch_usage(staging) <= max_staging_bytes,
+                'Staging disk budget exceeded',
             )
+            receipt_path = staging / 'validation.json'
+            receipt = json.loads(receipt_path.read_text())
+            receipt['scratch_peak_sampled_bytes'] = peak_staging
+            receipt['scratch_watchdog_interval_seconds'] = 0.05
+            receipt['resource_limits'].update(
+                {
+                    'max_staging_bytes': max_staging_bytes,
+                    'wall_timeout_seconds': timeout,
+                },
+            )
+            receipt_path.write_text(json.dumps(receipt, indent=2) + '\n')
             for name in ('callset.vcf.gz', 'callset.vcf.gz.tbi', 'validation.json'):
                 shutil.move(str(staging / name), str(output / name))
         return json.loads((output / 'validation.json').read_text())
@@ -380,22 +477,36 @@ def merge(
 
 def main():
     if len(sys.argv) > 1 and sys.argv[1] == '--worker':
+        # Kernel per-file bound complements aggregate disk watchdog (50ms polling).
+        limit = int(sys.argv[7])
+        _, hard = resource.getrlimit(resource.RLIMIT_FSIZE)
+        resource.setrlimit(
+            resource.RLIMIT_FSIZE,
+            (min(limit, hard) if hard != resource.RLIM_INFINITY else limit, hard),
+        )
         _build(
             json.loads(Path(sys.argv[2]).read_text()),
             Path(sys.argv[3]),
             int(sys.argv[4]),
             int(sys.argv[5]),
+            int(sys.argv[6]),
         )
         return
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('manifest')
     parser.add_argument('output_dir')
     parser.add_argument('--timeout', type=int, default=1800)
+    parser.add_argument('--max-records', type=int, default=20000000)
+    parser.add_argument('--max-expanded-bytes', type=int, default=8589934592)
+    parser.add_argument('--max-staging-bytes', type=int, default=8589934592)
     args = parser.parse_args()
     merge(
         json.loads(Path(args.manifest).read_text()),
         args.output_dir,
         timeout=args.timeout,
+        max_records=args.max_records,
+        max_expanded_bytes=args.max_expanded_bytes,
+        max_staging_bytes=args.max_staging_bytes,
     )
 
 

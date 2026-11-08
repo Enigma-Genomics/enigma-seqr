@@ -3,6 +3,7 @@
 import json
 import subprocess
 import sys
+from pathlib import Path
 
 import pysam
 import pytest
@@ -160,3 +161,85 @@ def test_cli_and_haploid_pl(tmp_path):
     )
     assert result.returncode == 0, result.stderr
     assert (tmp_path / 'out/validation.json').exists()
+
+
+@pytest.mark.parametrize(
+    'limits',
+    [
+        {'max_expanded_bytes': 1024},
+        {'max_staging_bytes': 1024},
+        {'max_bytes': 1},
+    ],
+)
+def test_configured_resource_limits_cleanup(tmp_path, limits):
+    manifest = fixture(tmp_path)
+    with pytest.raises(ValueError):
+        merge(manifest, tmp_path / 'out', **limits)
+    assert not (tmp_path / 'out').exists()
+    assert not list(tmp_path.glob('.trio-*'))
+
+
+def test_gatk_allele_annotations_have_explicit_gate(tmp_path):
+    manifest = fixture(tmp_path)
+    source = tmp_path / 'proband.vcf'
+    data = source.read_text()
+    data = data.replace(
+        '##reference',
+        '##INFO=<ID=AC,Number=A,Type=Integer,Description="Allele count">\n##INFO=<ID=AF,Number=A,Type=Float,Description="Allele frequency">\n##reference',
+    )
+    source.write_text(data.replace('PASS\t.', 'PASS\tAC=1;AF=0.5'))
+    with pytest.raises(ValueError, match='policy: AC,AF'):
+        merge(manifest, tmp_path / 'out')
+
+
+def test_shared_gatk_scalar_conflict_names_field(tmp_path):
+    manifest = fixture(tmp_path)
+    for member in manifest['members']:
+        source = Path(member['path'])
+        data = source.read_text().replace(
+            '##reference',
+            '##INFO=<ID=QD,Number=1,Type=Float,Description="Quality by depth">\n##reference',
+        )
+        qd = '4.5' if member['role'] == 'mother' else '8.2'
+        source.write_text(data.replace('PASS\t.', 'PASS\tQD=' + qd))
+    with pytest.raises(ValueError, match='INFO/QD'):
+        merge(manifest, tmp_path / 'out')
+
+
+def test_disjoint_sorted_streams_no_locus_loss(tmp_path):
+    manifest = fixture(
+        tmp_path,
+        [
+            [
+                'chr1\t10\t.\tA\tC\t.\tPASS\t.\tGT\t0/1',
+                'chr1\t40\t.\tA\tG\t.\tPASS\t.\tGT\t1/1',
+            ],
+            ['chr1\t20\t.\tA\tC\t.\tPASS\t.\tGT\t0/1'],
+            ['chr1\t30\t.\tA\tC\t.\tPASS\t.\tGT\t0/1'],
+        ],
+    )
+    receipt = merge(manifest, tmp_path / 'out')
+    assert receipt['records'] == receipt['index_records'] == 4
+
+
+def test_pinned_source_hash_mismatch(tmp_path):
+    manifest = fixture(tmp_path)
+    manifest['members'][0]['expected_sha256'] = '0' * 64
+    with pytest.raises(ValueError, match='Pinned source SHA256 mismatch'):
+        merge(manifest, tmp_path / 'out')
+
+
+def test_missing_vector_remains_missing_after_allele_expansion(tmp_path):
+    manifest = fixture(
+        tmp_path,
+        [
+            ['chr1\t10\t.\tA\tC\t.\tPASS\t.\tGT:AD\t./.:.'],
+            ['chr1\t10\t.\tA\tG\t.\tPASS\t.\tGT:AD\t1/1:1,8'],
+            ['chr1\t20\t.\tG\tA\t.\tPASS\t.\tGT\t./.'],
+        ],
+    )
+    merge(manifest, tmp_path / 'out')
+    with pysam.VariantFile(str(tmp_path / 'out/callset.vcf.gz')) as vcf:
+        first = next(vcf)
+        assert all(a is None for a in first.samples['proband']['AD'])
+        assert all(a is None for a in first.samples['proband']['GT'])
