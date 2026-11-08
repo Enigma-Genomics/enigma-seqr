@@ -44,17 +44,20 @@ def _legacy_utr_effects(c):
                     hl.struct(
                         effect=hl.missing(hl.tstr),
                         consequence=validated_enum_member(
-                            c.fiveutr_consequence, FIVEUTR_CONSEQUENCES
+                            c.fiveutr_consequence,
+                            FIVEUTR_CONSEQUENCES,
                         ),
                         annotations=hl.sorted(
-                            c.fiveutr_annotation.items(), key=lambda entry: entry[0]
+                            c.fiveutr_annotation.items(),
+                            key=lambda entry: entry[0],
                         ).map(
                             lambda entry: hl.struct(
-                                index=entry[0], annotation=entry[1]
+                                index=entry[0],
+                                annotation=entry[1],
                             ),
                         ),
                     ),
-                ]
+                ],
             ),
         ),
         hl.empty_array(
@@ -63,10 +66,11 @@ def _legacy_utr_effects(c):
                 consequence=hl.tstr,
                 annotations=hl.tarray(
                     hl.tstruct(
-                        index=hl.tstr, annotation=c.fiveutr_annotation.dtype.value_type
-                    )
+                        index=hl.tstr,
+                        annotation=c.fiveutr_annotation.dtype.value_type,
+                    ),
                 ),
-            )
+            ),
         ),
     )
 
@@ -87,17 +91,21 @@ def _all_utr_effects(c):
         lambda item: hl.struct(
             effect=item[0],
             consequence=validated_enum_member(
-                item[1].consequence, FIVEUTR_CONSEQUENCES
+                item[1].consequence,
+                FIVEUTR_CONSEQUENCES,
             ),
             annotations=hl.sorted(
-                item[1].annotation.items(), key=lambda entry: entry[0]
+                item[1].annotation.items(),
+                key=lambda entry: entry[0],
             ).map(
                 lambda entry: hl.struct(index=entry[0], annotation=entry[1]),
             ),
-        )
+        ),
     )
     return hl.if_else(
-        hl.is_defined(c.fiveutr_all_effects), effects, _legacy_utr_effects(c)
+        hl.is_defined(c.fiveutr_all_effects),
+        effects,
+        _legacy_utr_effects(c),
     )
 
 
@@ -151,7 +159,7 @@ def vep_110_transcript_consequences_select(
             existingOutofframeOorfs=c.existing_outofframe_oorfs,
             existingUorfs=c.existing_uorfs,
             fiveutrConsequences=_all_utr_effects(c).map(
-                lambda effect: effect.consequence
+                lambda effect: effect.consequence,
             ),
             fiveutrEffectsJson=hl.json(_all_utr_effects(c)),
             fiveutrConsequence=validated_enum_member(

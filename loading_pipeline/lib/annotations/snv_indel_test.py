@@ -255,7 +255,7 @@ class SNVTest(unittest.TestCase):
                         existingOutofframeOorfs=1,
                         existingUorfs=0,
                         fiveutrConsequences=[
-                            '5_prime_UTR_premature_start_codon_loss_variant'
+                            '5_prime_UTR_premature_start_codon_loss_variant',
                         ],
                         fiveutrEffectsJson=(
                             '[{"effect":null,"consequence":"5_prime_UTR_premature_start_codon_loss_variant",'

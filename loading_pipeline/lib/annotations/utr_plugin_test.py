@@ -2,9 +2,9 @@
 
 import json
 import os
-from pathlib import Path
 import subprocess
 import unittest
+from pathlib import Path
 
 PLUGIN = Path(__file__).parents[2] / 'var/vep/plugins/UTRAnnotator.pm'
 
@@ -14,7 +14,7 @@ class UtrPluginSelectionTest(unittest.TestCase):
         source = PLUGIN.read_text()
         block = source[
             source.index('  # Retain every matching class.') : source.index(
-                '  my %utr_effect;'
+                '  my %utr_effect;',
             )
         ]
         return (
@@ -31,8 +31,8 @@ print JSON::PP->new->canonical->encode({selected=>$output_five_prime_flag,effect
 
     def test_multiple_classes_and_all_evidence_repeat_across_seeds(self):
         results = [
-            subprocess.check_output(
-                ['perl', '-e', self.script()],
+            subprocess.check_output(  # noqa: S603 - executes the fixed repository test script
+                ['perl', '-e', self.script()],  # noqa: S607 - Perl is a test dependency
                 env={
                     **os.environ,
                     'PERL_HASH_SEED': str(seed),
@@ -46,15 +46,17 @@ print JSON::PP->new->canonical->encode({selected=>$output_five_prime_flag,effect
         self.assertIsNone(result['selected'])
         self.assertEqual(set(result['effects']), {'uAUG_gained', 'uSTOP_lost'})
         self.assertEqual(
-            set(result['effects']['uAUG_gained']['annotation']), {'1', '2'}
+            set(result['effects']['uAUG_gained']['annotation']),
+            {'1', '2'},
         )
         self.assertEqual(
-            result['effects']['uAUG_gained']['annotation']['1']['Evidence'], 'False'
+            result['effects']['uAUG_gained']['annotation']['1']['Evidence'],
+            'False',
         )
 
     def test_single_class_keeps_legacy_representative(self):
         result = json.loads(
-            subprocess.check_output(['perl', '-e', self.script('undef')])
+            subprocess.check_output(['perl', '-e', self.script('undef')]),  # noqa: S603, S607 - fixed test script
         )
         self.assertEqual(result['selected'], 'gain')
         self.assertEqual(len(result['effects']), 1)
