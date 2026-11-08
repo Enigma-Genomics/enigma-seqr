@@ -7,14 +7,20 @@ from django.test import SimpleTestCase
 
 class ClickhouseTranscriptFixtureSchemaTests(SimpleTestCase):
     def test_transcript_fixture_values_match_model_fields(self):
-        fixture_path = Path(__file__).parent / 'fixtures' / 'clickhouse_search.json'
-        fixtures = json.loads(fixture_path.read_text())
+        fixture_dir = Path(__file__).parent / 'fixtures'
+        fixture_paths = [
+            fixture_dir / 'clickhouse_search.json',
+            fixture_dir / 'clickhouse_transcripts.json',
+            fixture_dir.parent.parent / 'loading_pipeline' / 'lib' / 'test' / 'fixtures' / 'clickhouse_test.json',
+        ]
+        fixtures = [row for path in fixture_paths for row in json.loads(path.read_text())]
         transcript_rows = 0
         for row in fixtures:
-            values = row['fields'].get('sorted_transcript_consequences')
+            field_name = 'transcripts' if 'transcripts' in row['fields'] else 'sorted_transcript_consequences'
+            values = row['fields'].get(field_name)
             if values is None:
                 continue
-            field = apps.get_model(row['model'])._meta.get_field('sorted_transcript_consequences')
+            field = apps.get_model(row['model'])._meta.get_field(field_name)
             for value in values:
                 with self.subTest(model=row['model'], pk=row['pk'], value=value):
                     self.assertEqual(len(value), len(field.base_fields))
