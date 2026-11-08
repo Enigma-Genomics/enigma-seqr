@@ -66,7 +66,7 @@ def get_cluster_config(
                 'internal_ip_only': False,  # Recent change with 2.2 dataproc images.
                 'service_account': service_account_credentials.service_account_email,
                 'service_account_scopes': [
-                    'https://www.googleapis.com/auth/cloud-platform'
+                    'https://www.googleapis.com/auth/cloud-platform',
                 ],
             },
             'master_config': {
