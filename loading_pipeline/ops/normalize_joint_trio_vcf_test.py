@@ -13,7 +13,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pysam
-from normalize_joint_trio_vcf import normalize
+
+from loading_pipeline.ops.normalize_joint_trio_vcf import normalize
 
 HEADER = (
     '##fileformat=VCFv4.2\n##reference=GRCh38\n'
@@ -182,7 +183,7 @@ class IntakeTest(unittest.TestCase):
     def test_index_failure_and_no_overwrite(self):
         with (
             patch(
-                'normalize_joint_trio_vcf.subprocess.run',
+                'loading_pipeline.ops.normalize_joint_trio_vcf.subprocess.run',
                 side_effect=subprocess.TimeoutExpired('index', 1),
             ),
             self.assertRaises(subprocess.TimeoutExpired),
