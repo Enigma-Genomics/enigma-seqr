@@ -36,18 +36,39 @@ def _consequence_terms(c: hl.StructExpression) -> hl.ArrayExpression:
 
 def _legacy_utr_effects(c):
     # Retain the information old records actually contain, including every entry.
-    return hl.or_else(hl.or_missing(hl.is_defined(c.fiveutr_consequence), hl.array([
-        hl.struct(
-            effect=hl.missing(hl.tstr),
-            consequence=validated_enum_member(c.fiveutr_consequence, FIVEUTR_CONSEQUENCES),
-            annotations=hl.sorted(c.fiveutr_annotation.items(), key=lambda entry: entry[0]).map(
-                lambda entry: hl.struct(index=entry[0], annotation=entry[1]),
+    return hl.or_else(
+        hl.or_missing(
+            hl.is_defined(c.fiveutr_consequence),
+            hl.array(
+                [
+                    hl.struct(
+                        effect=hl.missing(hl.tstr),
+                        consequence=validated_enum_member(
+                            c.fiveutr_consequence, FIVEUTR_CONSEQUENCES
+                        ),
+                        annotations=hl.sorted(
+                            c.fiveutr_annotation.items(), key=lambda entry: entry[0]
+                        ).map(
+                            lambda entry: hl.struct(
+                                index=entry[0], annotation=entry[1]
+                            ),
+                        ),
+                    ),
+                ]
             ),
         ),
-    ])), hl.empty_array(hl.tstruct(
-        effect=hl.tstr, consequence=hl.tstr,
-        annotations=hl.tarray(hl.tstruct(index=hl.tstr, annotation=c.fiveutr_annotation.dtype.value_type)),
-    )))
+        hl.empty_array(
+            hl.tstruct(
+                effect=hl.tstr,
+                consequence=hl.tstr,
+                annotations=hl.tarray(
+                    hl.tstruct(
+                        index=hl.tstr, annotation=c.fiveutr_annotation.dtype.value_type
+                    )
+                ),
+            )
+        ),
+    )
 
 
 def _all_utr_effects(c):
@@ -55,17 +76,29 @@ def _all_utr_effects(c):
     if 'fiveutr_all_effects' not in c.dtype.fields:
         return _legacy_utr_effects(c)
     effects = hl.sorted(
-        hl.or_else(c.fiveutr_all_effects.items(), hl.empty_array(
-            hl.ttuple(hl.tstr, c.fiveutr_all_effects.dtype.value_type),
-        )), key=lambda item: item[0],
-    ).map(lambda item: hl.struct(
-        effect=item[0],
-        consequence=validated_enum_member(item[1].consequence, FIVEUTR_CONSEQUENCES),
-        annotations=hl.sorted(item[1].annotation.items(), key=lambda entry: entry[0]).map(
-            lambda entry: hl.struct(index=entry[0], annotation=entry[1]),
+        hl.or_else(
+            c.fiveutr_all_effects.items(),
+            hl.empty_array(
+                hl.ttuple(hl.tstr, c.fiveutr_all_effects.dtype.value_type),
+            ),
         ),
-    ))
-    return hl.if_else(hl.is_defined(c.fiveutr_all_effects), effects, _legacy_utr_effects(c))
+        key=lambda item: item[0],
+    ).map(
+        lambda item: hl.struct(
+            effect=item[0],
+            consequence=validated_enum_member(
+                item[1].consequence, FIVEUTR_CONSEQUENCES
+            ),
+            annotations=hl.sorted(
+                item[1].annotation.items(), key=lambda entry: entry[0]
+            ).map(
+                lambda entry: hl.struct(index=entry[0], annotation=entry[1]),
+            ),
+        )
+    )
+    return hl.if_else(
+        hl.is_defined(c.fiveutr_all_effects), effects, _legacy_utr_effects(c)
+    )
 
 
 def vep_110_transcript_consequences_select(
@@ -117,7 +150,9 @@ def vep_110_transcript_consequences_select(
             existingInframeOorfs=c.existing_inframe_oorfs,
             existingOutofframeOorfs=c.existing_outofframe_oorfs,
             existingUorfs=c.existing_uorfs,
-            fiveutrConsequences=_all_utr_effects(c).map(lambda effect: effect.consequence),
+            fiveutrConsequences=_all_utr_effects(c).map(
+                lambda effect: effect.consequence
+            ),
             fiveutrEffectsJson=hl.json(_all_utr_effects(c)),
             fiveutrConsequence=validated_enum_member(
                 c.fiveutr_consequence,

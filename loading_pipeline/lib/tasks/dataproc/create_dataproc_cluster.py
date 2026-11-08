@@ -58,12 +58,16 @@ def get_cluster_config(
                     'PIPELINE_RUNNER_APP_VERSION': Env.PIPELINE_RUNNER_APP_VERSION,
                     'REFERENCE_DATASETS_DIR': Env.REFERENCE_DATASETS_DIR,
                     'PIPELINE_RUNNER_BUILD_BASE': Env.PIPELINE_RUNNER_BUILD_BASE,
-                    'VEP_IMAGE_URI': Env.VEP_IMAGE_URI if reference_genome == ReferenceGenome.GRCh38 else '',
+                    'VEP_IMAGE_URI': Env.VEP_IMAGE_URI
+                    if reference_genome == ReferenceGenome.GRCh38
+                    else '',
                     'VEP_UTR_PLUGIN_SHA256': Env.VEP_UTR_PLUGIN_SHA256,
                 },
                 'internal_ip_only': False,  # Recent change with 2.2 dataproc images.
                 'service_account': service_account_credentials.service_account_email,
-                'service_account_scopes': ['https://www.googleapis.com/auth/cloud-platform'],
+                'service_account_scopes': [
+                    'https://www.googleapis.com/auth/cloud-platform'
+                ],
             },
             'master_config': {
                 'num_instances': 1,
@@ -121,7 +125,9 @@ def get_cluster_config(
                     'spark-env:HAIL_TMP_DIR': Env.HAIL_TMP_DIR,
                     'spark-env:LOADING_DATASETS_DIR': Env.LOADING_DATASETS_DIR,
                     'spark-env:REFERENCE_DATASETS_DIR': Env.REFERENCE_DATASETS_DIR,
-                    'spark-env:VEP_IMAGE_URI': Env.VEP_IMAGE_URI if reference_genome == ReferenceGenome.GRCh38 else '',
+                    'spark-env:VEP_IMAGE_URI': Env.VEP_IMAGE_URI
+                    if reference_genome == ReferenceGenome.GRCh38
+                    else '',
                     'spark-env:SAMPLE_TYPE_VALIDATION_EXCLUDED_PROJECTS': ','.join(
                         Env.SAMPLE_TYPE_VALIDATION_EXCLUDED_PROJECTS,
                     ),
@@ -129,7 +135,11 @@ def get_cluster_config(
             },
             'lifecycle_config': {
                 'idle_delete_ttl': {'seconds': Env.DATAPROC_IDLE_DELETE_TTL},
-                **({'auto_delete_ttl': {'seconds': Env.DATAPROC_AUTO_DELETE_TTL}} if Env.DATAPROC_AUTO_DELETE_TTL else {}),
+                **(
+                    {'auto_delete_ttl': {'seconds': Env.DATAPROC_AUTO_DELETE_TTL}}
+                    if Env.DATAPROC_AUTO_DELETE_TTL
+                    else {}
+                ),
             },
             'encryption_config': {},
             'autoscaling_config': {},
