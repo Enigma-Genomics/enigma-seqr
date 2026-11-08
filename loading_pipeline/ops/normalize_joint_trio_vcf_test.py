@@ -13,7 +13,11 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pysam
-from normalize_joint_trio_vcf import normalize
+
+from loading_pipeline.ops.normalize_joint_trio_vcf import (
+    manifest_from_request,
+    normalize,
+)
 
 HEADER = (
     '##fileformat=VCFv4.2\n##reference=GRCh38\n'
@@ -51,14 +55,11 @@ class IntakeTest(unittest.TestCase):
                     'accession_id': 'acc-' + role,
                     'father_id': 'father' if role == 'proband' else None,
                     'mother_id': 'mother' if role == 'proband' else None,
-                    'sex': 'U',
-                    'affected': 'U',
-                    'metadata': {'hpo_present': [], 'hpo_absent': []},
                 },
             )
         self.manifest = {
-            'schema_version': 1,
-            'kind': 'attested_joint_trio',
+            'schema_version': 2,
+            'kind': 'attested_joint_trio_identity',
             'family_id': 'FAM1',
             'joint_report_id': 'REP1',
             'genome_version': '38',
@@ -78,6 +79,10 @@ class IntakeTest(unittest.TestCase):
         self.source.write_bytes(
             gzip.compress(text.encode()) if compressed else text.encode(),
         )
+        header = ''.join(
+            line for line in text.splitlines(keepends=True) if line.startswith('#')
+        )
+        self.manifest['header_sha256'] = hashlib.sha256(header.encode()).hexdigest()
         self.manifest['source_sha256'] = hashlib.sha256(
             self.source.read_bytes(),
         ).hexdigest()
@@ -182,7 +187,7 @@ class IntakeTest(unittest.TestCase):
     def test_index_failure_and_no_overwrite(self):
         with (
             patch(
-                'normalize_joint_trio_vcf.subprocess.run',
+                'loading_pipeline.ops.normalize_joint_trio_vcf.subprocess.run',
                 side_effect=subprocess.TimeoutExpired('index', 1),
             ),
             self.assertRaises(subprocess.TimeoutExpired),
@@ -201,6 +206,85 @@ class IntakeTest(unittest.TestCase):
             HEADER + ''.join(ROW.replace('1\t10', f'1\t{i}') for i in range(1, 20001)),
         )
         self.assertEqual(self.run_intake()['records'], 20000)
+
+    def test_identity_only_queue_bridge_and_metadata_rejection(self):
+        identity = hashlib.sha256(b'REP1').hexdigest()
+        request = {
+            'schema_version': 1,
+            'kind': 'normalize_joint_trio',
+            'source': {'bucket': 'synthetic', 'path': 'input.vcf', 'generation': '1'},
+            'subject_key': 'family:' + identity,
+            **{
+                key: self.manifest[key]
+                for key in (
+                    'joint_report_id',
+                    'genome_version',
+                    'sample_type',
+                    'dataset_type',
+                    'header_sha256',
+                    'individuals',
+                    'joint_genotyping_attestation',
+                )
+            },
+            'family_id': 'JR_' + identity,
+        }
+
+        def seal():
+            request['intake_request_id'] = hashlib.sha256(
+                json.dumps(
+                    {k: v for k, v in request.items() if k != 'intake_request_id'},
+                    sort_keys=True,
+                    separators=(',', ':'),
+                    ensure_ascii=False,
+                ).encode(),
+            ).hexdigest()
+
+        seal()
+        manifest = manifest_from_request(request, self.manifest['source_sha256'])
+        receipt = normalize(
+            self.source,
+            self.output,
+            manifest,
+            self.reference,
+            request['family_id'],
+            'REP1',
+        )
+        self.assertNotIn('metadata', json.dumps(receipt))
+        self.assertEqual(receipt['header_sha256'], request['header_sha256'])
+        for field, value in [
+            ('sex', 'U'),
+            ('affected', 'U'),
+            ('metadata', {}),
+            ('notes', 'test'),
+        ]:
+            person = request['individuals'][0]
+            person[field] = value
+            seal()
+            with self.assertRaises(ValueError):
+                manifest_from_request(request, self.manifest['source_sha256'])
+            del person[field]
+        request['notes'] = 'not allowed'
+        seal()
+        with self.assertRaises(ValueError):
+            manifest_from_request(request, self.manifest['source_sha256'])
+
+    def test_header_hash_binds_original_crlf_bytes(self):
+        self.write(HEADER.replace('\n', '\r\n') + ROW)
+        original = self.manifest['header_sha256']
+        self.assertNotEqual(original, hashlib.sha256(HEADER.encode()).hexdigest())
+        self.assertEqual(self.run_intake()['header_sha256'], original)
+
+    def test_missing_header_newline_rejected(self):
+        self.write(HEADER.rstrip('\n'))
+        with self.assertRaises(ValueError):
+            self.run_intake()
+        self.assertFalse(self.output.exists())
+
+    def test_pinned_header_hash_mismatch_cleans_up(self):
+        self.manifest['header_sha256'] = '0' * 64
+        with self.assertRaises(ValueError):
+            self.run_intake()
+        self.assertFalse(self.output.exists())
 
     def test_cli(self):
         manifest = self.root / 'manifest.json'

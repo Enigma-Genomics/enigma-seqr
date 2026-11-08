@@ -37,10 +37,13 @@ def read_json(path):
 
 def contract(manifest, reference, family_id, joint_report_id):
     require(
-        isinstance(manifest, dict) and manifest.get('schema_version') == 1,
+        isinstance(manifest, dict) and manifest.get('schema_version') == 2,
         'Invalid intake schema',
     )
-    require(manifest.get('kind') == 'attested_joint_trio', 'Not an attested joint trio')
+    require(
+        manifest.get('kind') == 'attested_joint_trio_identity',
+        'Not an attested joint trio',
+    )
     for key, expected in [
         ('family_id', family_id),
         ('joint_report_id', joint_report_id),
@@ -53,6 +56,28 @@ def contract(manifest, reference, family_id, joint_report_id):
         family_id != joint_report_id,
         'Family and report identities must be distinct',
     )
+    require(
+        set(manifest)
+        == {
+            'schema_version',
+            'kind',
+            'family_id',
+            'joint_report_id',
+            'genome_version',
+            'sample_type',
+            'dataset_type',
+            'source_sha256',
+            'header_sha256',
+            'individuals',
+            'joint_genotyping_attestation',
+        },
+        'Unexpected normalization manifest fields',
+    )
+    require(
+        isinstance(manifest.get('header_sha256'), str)
+        and re.fullmatch('[a-f0-9]{64}', manifest['header_sha256']),
+        'Header hash required',
+    )
     require(manifest.get('genome_version') == '38', 'Only GRCh38 supported')
     require(manifest.get('sample_type') in ('WES', 'WGS'), 'Invalid sample type')
     require(manifest.get('dataset_type') == 'SNV_INDEL', 'Invalid dataset type')
@@ -61,7 +86,11 @@ def contract(manifest, reference, family_id, joint_report_id):
         'Source hash required',
     )
     provenance = manifest.get('joint_genotyping_attestation')
-    require(isinstance(provenance, dict), 'Joint-genotyping attestation required')
+    require(
+        isinstance(provenance, dict)
+        and set(provenance) == {'confirmed', 'authority', 'reference', 'confirmed_by'},
+        'Joint-genotyping attestation required',
+    )
     require(provenance.get('confirmed') is True, 'Explicit confirmation required')
     require(
         provenance.get('authority') in ('user_confirmed', 'trusted_workflow'),
@@ -100,6 +129,10 @@ def contract(manifest, reference, family_id, joint_report_id):
         contigs.get('1', contigs.get('chr1')) == 248956422,
         'GRCh38 chromosome 1 required',
     )
+    return identity_mapping(manifest), contigs
+
+
+def identity_mapping(manifest):
     people = manifest.get('individuals')
     require(
         isinstance(people, list)
@@ -120,9 +153,16 @@ def contract(manifest, reference, family_id, joint_report_id):
     by_role = {p['role']: p for p in people}
     for person in people:
         require(
-            person.get('sex') in ('M', 'F', 'U')
-            and person.get('affected') in ('A', 'N', 'U'),
-            'Explicit sex/affected metadata required',
+            set(person)
+            == {
+                'role',
+                'sample_id',
+                'accession_id',
+                'source_sample_id',
+                'mother_id',
+                'father_id',
+            },
+            'Normalization accepts identity fields only; clinical metadata belongs in preparation review',
         )
         for parent in ('mother', 'father'):
             expected = (
@@ -132,25 +172,99 @@ def contract(manifest, reference, family_id, joint_report_id):
                 parent + '_id' in person and person[parent + '_id'] == expected,
                 'Pedigree identity mismatch',
             )
-        metadata = person.get('metadata')
-        require(isinstance(metadata, dict), 'Per-person metadata required')
-        for key in ('hpo_present', 'hpo_absent'):
-            values = metadata.get(key, [])
-            require(
-                isinstance(values, list)
-                and len(values) <= 500
-                and all(
-                    isinstance(v, str) and re.fullmatch(r'HP:\d{7}', v) for v in values
-                ),
-                'Invalid HPO metadata',
-            )
-            require(len(values) == len(set(values)), 'Duplicate HPO metadata')
+    return {p['source_sample_id']: p['sample_id'] for p in people}
+
+
+def manifest_from_request(request, source_sha256):
+    """Bridge an immutable identity-only queue to local intake, without clinical defaults.
+
+    Caller downloads the exact pinned generation, hashes it, and separately supplies
+    the operator-configured verified reference dictionary to normalize().
+    """
+    keys = {
+        'schema_version',
+        'kind',
+        'intake_request_id',
+        'source',
+        'header_sha256',
+        'joint_report_id',
+        'family_id',
+        'subject_key',
+        'genome_version',
+        'sample_type',
+        'dataset_type',
+        'individuals',
+        'joint_genotyping_attestation',
+    }
+    require(
+        isinstance(request, dict) and set(request) == keys,
+        'Unexpected queue fields',
+    )
+    require(
+        request['schema_version'] == 1 and request['kind'] == 'normalize_joint_trio',
+        'Unsupported queue schema',
+    )
+    content = {
+        key: value for key, value in request.items() if key != 'intake_request_id'
+    }
+    digest = hashlib.sha256(
+        json.dumps(
+            content,
+            sort_keys=True,
+            separators=(',', ':'),
+            ensure_ascii=False,
+        ).encode('utf-8'),
+    ).hexdigest()
+    require(
+        request['intake_request_id'] == digest,
+        'Intake request fingerprint mismatch',
+    )
+    require(identifier(request['joint_report_id']), 'Invalid joint report identifier')
+    identity = hashlib.sha256(request['joint_report_id'].encode('utf-8')).hexdigest()
+    require(
+        request['family_id'] == 'JR_' + identity
+        and request['subject_key'] == 'family:' + identity,
+        'Derived family namespace mismatch',
+    )
+    source = request['source']
+    require(
+        isinstance(source, dict) and set(source) == {'bucket', 'path', 'generation'},
+        'Invalid source pin',
+    )
+    for key, bound in (('bucket', 222), ('path', 1024), ('generation', 30)):
         require(
-            not set(metadata.get('hpo_present', []))
-            & set(metadata.get('hpo_absent', [])),
-            'Conflicting HPO metadata',
+            isinstance(source[key], str)
+            and 0 < len(source[key]) <= bound
+            and not any(ord(c) < 32 for c in source[key]),
+            'Invalid source pin',
         )
-    return {p['source_sample_id']: p['sample_id'] for p in people}, contigs
+    require(
+        re.fullmatch('[1-9][0-9]*', source['generation']),
+        'Invalid pinned generation',
+    )
+    require(
+        isinstance(source_sha256, str) and re.fullmatch('[a-f0-9]{64}', source_sha256),
+        'Downloaded source hash required',
+    )
+    identity_mapping(request)
+    return {
+        'schema_version': 2,
+        'kind': 'attested_joint_trio_identity',
+        **{
+            key: request[key]
+            for key in (
+                'family_id',
+                'joint_report_id',
+                'genome_version',
+                'sample_type',
+                'dataset_type',
+                'header_sha256',
+                'individuals',
+                'joint_genotyping_attestation',
+            )
+        },
+        'source_sha256': source_sha256,
+    }
 
 
 def normalize(  # noqa: C901, PLR0912, PLR0915, PLR0913 - explicit streaming checks
@@ -225,6 +339,7 @@ def normalize(  # noqa: C901, PLR0912, PLR0915, PLR0913 - explicit streaming che
         reference_seen = False
         last = (-1, 0)
         row_digest = hashlib.sha256()
+        header_digest = hashlib.sha256()
         source_samples = []
         ranks = {}
         with opener(source, 'rb') as src, pysam.BGZFile(str(output), 'w') as dst:
@@ -254,6 +369,11 @@ def normalize(  # noqa: C901, PLR0912, PLR0915, PLR0913 - explicit streaming che
                 if text.startswith('#'):
                     require(not seen_header, 'Header after sample header')
                     header_bytes += len(line)
+                    require(
+                        line.endswith(b'\n'),
+                        'Header lines require a final newline',
+                    )
+                    header_digest.update(line)
                     require(header_bytes <= max_header_bytes, 'Header limit exceeded')
                     if text.startswith('##reference='):
                         require(not reference_seen, 'Duplicate reference')
@@ -284,6 +404,10 @@ def normalize(  # noqa: C901, PLR0912, PLR0915, PLR0913 - explicit streaming che
                         )
                         declared[name] = int(length)
                     if text.startswith('#CHROM'):
+                        require(
+                            header_digest.hexdigest() == manifest['header_sha256'],
+                            'Pinned header hash mismatch',
+                        )
                         columns = text.split('\t')
                         require(
                             columns[:9]
@@ -420,6 +544,7 @@ def normalize(  # noqa: C901, PLR0912, PLR0915, PLR0913 - explicit streaming che
             'kinship_verified': False,
             'sex_verified': False,
             'manifest': manifest,
+            'header_sha256': manifest['header_sha256'],
             'reference_evidence': reference,
             'records': records,
             'sample_order': [mapping[s] for s in source_samples],
