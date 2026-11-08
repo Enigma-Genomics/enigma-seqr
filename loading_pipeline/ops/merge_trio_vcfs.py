@@ -104,7 +104,7 @@ def _build(manifest, staging, max_records, max_bytes):
     hashes = [digest(p) for p in paths]
     for member, sha in zip(members, hashes, strict=True):
         require(
-            member.get('expected_sha256', sha) == sha, 'Pinned source SHA256 mismatch'
+            member.get('expected_sha256', sha) == sha, 'Pinned source SHA256 mismatch',
         )
     sources, records, contigs, definitions, site_metadata = [], {}, None, {}, {}
     counts = []
