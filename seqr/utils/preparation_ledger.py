@@ -94,6 +94,8 @@ def apply_preparation(envelope, apply_metadata):
     historical = PreparationOutbox.objects.filter(ledger=ledger, revision=revision, review_sequence=sequence).first()
     if historical:
         return historical
+    if ledger.review_sequence and ledger.request_id != envelope['request_id']:
+        raise PreparationConflict('Source or assay changes require a separate re-preparation workflow')
     if sequence != ledger.review_sequence + 1 or (envelope['expected_previous_revision'] or '') != ledger.revision:
         raise PreparationConflict('Stale or out-of-order metadata review')
     project_guid, token = apply_metadata(ledger)

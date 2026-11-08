@@ -152,6 +152,22 @@ class LedgerTest(unittest.TestCase):
         self.assertEqual(PreparationOutbox.objects.count(), 2)
         self.assertEqual(SyntheticClinicalRow.objects.count(), 2)
 
+    def test_source_and_assay_remain_pinned_across_metadata_reviews(self):
+        apply_preparation(self.envelope, self.apply)
+        original = copy.deepcopy(self.envelope)
+        for field, value in [('source', dict(original['source'], generation='2')), ('sample_type', 'WGS')]:
+            self.envelope = copy.deepcopy(original)
+            self.envelope.update(review_sequence=2, expected_previous_revision=original['revision'])
+            self.envelope[field] = value
+            request = {key: self.envelope[key] for key in ('accession_id', 'sample_type', 'genome_version')}
+            request = {'schema_version': 1, 'kind': 'normalize_singleton', **request, 'source': self.envelope['source']}
+            self.envelope['request_id'] = hashlib.sha256(json.dumps(request, separators=(',', ':')).encode()).hexdigest()
+            self.seal()
+            with self.subTest(field=field), self.assertRaises(PreparationConflict):
+                apply_preparation(self.envelope, self.apply)
+        self.assertEqual(self.calls, 1)
+        self.assertEqual(PreparationLedger.objects.get().request_id, original['request_id'])
+
     def test_tampered_envelope_rejected(self):
         self.envelope['accession_id'] = 'OTHER'
         with self.assertRaises(PreparationConflict): apply_preparation(self.envelope, self.apply)

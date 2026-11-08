@@ -1,7 +1,7 @@
 # Versioned preparation ledger candidate
 
-Not deployed. Migration 0091 has not been executed. New worker activation remains
-blocked until reviewed PostgreSQL integration, actual model adapter and image tests.
+Not deployed. Migration 0091 has not been executed against an operational database.
+Worker activation remains blocked on end-to-end authority and runtime validation.
 
 An immutable envelope has schema_version=2, kind=individual, a content-hash revision,
 review_sequence (first 1, thereafter +1), and expected_previous_revision (null for
@@ -40,3 +40,14 @@ For ephemeral CI Postgres only, PREP_TEST_POSTGRES_PORT connects exclusively to
 127.0.0.1, database prep_ledger_synthetic, user/password synthetic. This creates only
 synthetic test tables through schema_editor. Never point tests at operational DBs.
 No arbitrary DSN/environment credential loading is supported.
+
+Ordinary metadata revisions pin the original normalization request ID, which binds
+accession, assay, reference and immutable source identity/header sample. A changed
+file or generation is NOT an ordinary retry: it is rejected even before loading.
+An explicit re-preparation workflow with prior-source/revision checks and a verified
+no-loaded-data condition remains separate and disabled. No implicit source switch
+is permitted merely because an accession matches.
+
+Validation checkpoint: the initial migration and three actual Individual adapter
+tests passed in disposable application CI databases; PostgreSQL standalone CAS/race
+tests passed separately. No production migration or activation has occurred.
