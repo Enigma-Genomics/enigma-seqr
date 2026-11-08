@@ -8,7 +8,7 @@ from django.contrib.auth import get_user_model
 from django.test import TransactionTestCase
 from django.utils import timezone
 
-from seqr.models import Individual, Project, Dataset
+from seqr.models import Individual, Project, Dataset, Family
 from seqr.preparation_models import PreparationLedger, PreparationOutbox
 from seqr.utils.preparation_individual import apply_individual_metadata, refresh_preparation_dictionaries
 from seqr.utils.preparation_ledger import apply_preparation, canonical_digest, PreparationConflict, validate_envelope, deliver_acknowledgment
@@ -214,6 +214,10 @@ class PreparationIndividualTest(TransactionTestCase):
             with self.assertRaisesRegex(PreparationConflict, 'Loaded individual'):
                 self.apply()
             relation.clear()
+        # Remove protected children in the disposable test database before
+        # exercising the missing-project guard against the retained ledger.
+        individual.delete()
+        Family.objects.get().delete()
         Project.objects.get().delete()
         with self.assertRaisesRegex(PreparationConflict, 'project is missing'):
             self.apply()
