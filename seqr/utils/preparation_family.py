@@ -39,7 +39,10 @@ def family_metadata_token(project, family, people):
 
 @transaction.atomic
 def apply_family_metadata(envelope, ledger, user):
-    """Called only under locked revision ledger; no external IO or dataset loading."""
+    """Caller must hold the namespaced ledger lock; this decorator cannot prove that.
+
+    No external IO or dataset loading occurs in this callback.
+    """
     from seqr.models import Project, Family, Individual
     from seqr.views.utils.json_to_orm_utils import (
         create_model_from_json,

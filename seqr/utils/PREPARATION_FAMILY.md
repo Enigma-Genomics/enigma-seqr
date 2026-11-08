@@ -120,3 +120,8 @@ authoritative report ownership; pinned source/output verification by the future
 consumer; real provenance, sex/kinship and metadata review; multi-sample Exomiser;
 concurrent writer/loader coordination; permissions review; production resource
 supervision; and explicit authorization for any live clinical activation/load.
+
+The singleton validator reserves the exact `JR_[a-f0-9]{64}` project namespace.
+Manual external project creation is not serialized by this ledger and remains a
+runtime activation gate. The adapter's atomic decorator does not itself prove
+that the caller holds the ledger lock; callers must use `apply_preparation`.

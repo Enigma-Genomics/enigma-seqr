@@ -53,6 +53,59 @@ class LedgerTest(unittest.TestCase):
         SyntheticClinicalRow.objects.create(value=self.envelope['revision'])
         return 'R_SYNTH', 'b' * 64
 
+    def test_singleton_cannot_claim_reserved_family_project_name(self):
+        from seqr.utils.preparation_family_test_utils import synthetic_family_envelope
+        reserved = synthetic_family_envelope()['family_id']
+        self.envelope['accession_id'] = reserved
+        self.envelope['individual']['sample_id'] = reserved
+        request = {'schema_version': 1, 'kind': 'normalize_singleton',
+                   **{key: self.envelope[key] for key in ('accession_id', 'sample_type', 'genome_version')},
+                   'source': self.envelope['source']}
+        self.envelope['request_id'] = hashlib.sha256(json.dumps(request, separators=(',', ':')).encode()).hexdigest()
+        self.seal()
+        with self.assertRaisesRegex(PreparationConflict, 'Reserved family'):
+            apply_preparation(self.envelope, self.apply)
+        self.assertFalse(PreparationLedger.objects.exists())
+
+    def test_family_namespace_ack_and_metadata_revision(self):
+        from seqr.utils.preparation_family_test_utils import synthetic_family_envelope, seal
+        family = synthetic_family_envelope()
+        singleton = apply_preparation(self.envelope, self.apply)
+        first = apply_preparation(family, self.apply)
+        self.assertNotEqual(first.ledger_id, singleton.ledger_id)
+        self.assertEqual(first.ledger.subject_key, family['subject_key'])
+        self.assertEqual(first.payload['joint_report_id'], family['joint_report_id'])
+        self.assertEqual(first.payload['subject_key'], family['subject_key'])
+        self.assertEqual(first.payload['kind'], 'family_joint_callset')
+        self.assertNotIn('accession_id', first.payload)
+        self.assertEqual(apply_preparation(family, self.apply).pk, first.pk)
+        family.update(review_sequence=2, expected_previous_revision=family['revision'])
+        family['individuals'][0]['metadata']['hpo_present'] = []
+        seal(family)
+        second = apply_preparation(family, self.apply)
+        self.assertEqual(second.review_sequence, 2)
+        self.assertEqual(self.calls, 3)
+
+    def test_family_source_change_and_callback_rollback(self):
+        from seqr.utils.preparation_family_test_utils import synthetic_family_envelope, seal
+        from seqr.utils.preparation_family_contract import family_request
+        family = synthetic_family_envelope()
+        def fail(ledger):
+            self.apply(ledger)
+            raise RuntimeError('synthetic family callback failure')
+        with self.assertRaises(RuntimeError):
+            apply_preparation(family, fail)
+        self.assertFalse(PreparationLedger.objects.exists())
+        self.assertFalse(SyntheticClinicalRow.objects.exists())
+        apply_preparation(family, self.apply)
+        family.update(review_sequence=2, expected_previous_revision=family['revision'])
+        family['source']['generation'] = '2'
+        family['request_id'] = canonical_digest(family_request(family))
+        seal(family)
+        with self.assertRaises(PreparationConflict):
+            apply_preparation(family, self.apply)
+        self.assertEqual(PreparationLedger.objects.get().review_sequence, 1)
+
     def test_apply_and_exact_retry_once(self):
         first = apply_preparation(self.envelope, self.apply)
         second = apply_preparation(self.envelope, self.apply)
