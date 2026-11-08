@@ -274,7 +274,7 @@
                     "ENST00000383791.8:c.156A>C", "ENSP00000373301.3:p.Leu52Phe", [null, null], [null, []], "missense_variant",
                     null, "NM_004844.5", "NM_004844.5", [false], "ENST00000383791", 0, [null, null, null, [
                         null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null
-                    ], null]
+                    ], null, [], null]
                 ]
             ],
             "sorted_motif_feature_consequences": [],
