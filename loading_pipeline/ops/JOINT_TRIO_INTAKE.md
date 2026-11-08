@@ -119,8 +119,8 @@ validated workload sizing and operational cleanup. No cloud benchmark was run.
 Synthetic verification:
 
 ```sh
-cd loading_pipeline/ops
-python -m unittest normalize_joint_trio_vcf_test -v
+# from repository root:
+python -m unittest loading_pipeline.ops.normalize_joint_trio_vcf_test -v
 # from repository root, using Ruff 0.11.3:
 ruff check loading_pipeline/ops/normalize_joint_trio_vcf*.py
 ruff format --check loading_pipeline/ops/normalize_joint_trio_vcf*.py
