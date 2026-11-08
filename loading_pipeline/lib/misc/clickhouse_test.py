@@ -932,6 +932,30 @@ class ClickhouseTest(MockedDatarootTestCase, ClickhouseSchemaTestCase):
         return_value=[ClickhouseReferenceDataset.CLINVAR],
     )
     def test_load_run_variants_snv_indel(self, mock_for_reference_genome_dataset_type):
+        # Existing keys must retain their fixture identities; this is the
+        # successful import test, not a stale-key collision scenario.
+        details_path = os.path.join(
+            new_variant_details_parquet_path(
+                ReferenceGenome.GRCh38,
+                DatasetType.SNV_INDEL,
+                TEST_RUN_ID,
+            ),
+            'test.parquet',
+        )
+        details = pq.read_table(details_path)
+        details = details.set_column(
+            details.schema.get_field_index('variantId'),
+            'variantId',
+            pa.array(
+                [
+                    '1-878314-G-C',
+                    '2-14-A-T',
+                    '3-133456789-A-G',
+                    '4-133456789-C-T',
+                ],
+            ),
+        )
+        pq.write_table(details, details_path)
         load_run_variants(
             ReferenceGenome.GRCh38,
             DatasetType.SNV_INDEL,
@@ -986,10 +1010,10 @@ class ClickhouseTest(MockedDatarootTestCase, ClickhouseSchemaTestCase):
         self.assertCountEqual(
             variants_details,
             [
-                (1, '1-13-A-C'),
+                (1, '1-878314-G-C'),
                 (2, '2-14-A-T'),
-                (3, 'Y-19-A-C'),
-                (4, 'M-12-C-G'),
+                (3, '3-133456789-A-G'),
+                (4, '4-133456789-C-T'),
                 (7, '7-1234567-AGT-A'),
                 (10, '10-987654-G-A'),
             ],
