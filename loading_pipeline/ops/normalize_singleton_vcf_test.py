@@ -10,7 +10,7 @@ from pathlib import Path
 from loading_pipeline.ops.normalize_singleton_vcf import normalize
 
 HEADER = (
-    '##fileformat=VCFv4.2\n##reference=GRCh38\n##contig=<ID=chr1,length=1000>\n'
+    '##fileformat=VCFv4.2\n##reference=GRCh38\n##contig=<ID=chr1,length=248956422>\n'
     '##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">\n'
     '##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Depth">\n'
     '#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\told\n'
@@ -87,3 +87,20 @@ class NormalizeTest(unittest.TestCase):
         )
         self.assertEqual(json.loads(result.stdout)['records'], 3)
         self.assertTrue((self.out / 'validation.json').exists())
+
+    def test_resource_limits(self):
+        for index, limits in enumerate([{'max_source_bytes': 10}, {'max_line_bytes': 10}, {'max_expanded_bytes': 10}, {'timeout': -1}]):
+            with self.subTest(limits=limits), self.assertRaises(ValueError):
+                normalize(self.src, self.root / f'limited-{index}', 'old', 'new', **limits)
+
+    def test_explicit_reference_path_and_contig_guard(self):
+        self.src.write_text((HEADER + BODY).replace('##reference=GRCh38', '##reference=file:///reference/Homo_sapiens_assembly38.fasta'))
+        self.assertEqual(normalize(self.src, self.out, 'old', 'new')['records'], 3)
+        self.src.write_text((HEADER + BODY).replace('length=248956422', 'length=249250621'))
+        with self.assertRaises(ValueError):
+            normalize(self.src, self.root / 'wrong-build', 'old', 'new')
+
+    def test_nonvariant_site_rejects_nonreference_genotype(self):
+        self.src.write_text(HEADER + 'chr1\t10\t.\tA\t.\t.\tPASS\t.\tGT:DP\t0/1:20\n')
+        with self.assertRaises(ValueError):
+            normalize(self.src, self.out, 'old', 'new')
