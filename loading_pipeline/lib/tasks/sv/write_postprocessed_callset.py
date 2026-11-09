@@ -2,6 +2,7 @@ import hail as hl
 import luigi
 import luigi.util
 
+from loading_pipeline.lib.misc.callset_identity import guard_callset
 from loading_pipeline.lib.misc.io import (
     import_callset,
 )
@@ -25,6 +26,7 @@ from loading_pipeline.lib.tasks.write_validation_errors_for_run import (
 )
 
 
+@guard_callset
 @luigi.util.inherits(BaseLoadingRunParams)
 class WritePostprocessedSvCallsetTask(BaseWriteTask):
     def complete(self) -> bool:
@@ -40,6 +42,7 @@ class WritePostprocessedSvCallsetTask(BaseWriteTask):
                 self.reference_genome,
                 self.dataset_type,
                 self.callset_path,
+                self.callset_identity,
             ),
         )
 

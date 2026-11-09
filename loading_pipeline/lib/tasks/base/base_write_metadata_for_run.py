@@ -3,6 +3,7 @@ import json
 import luigi
 import luigi.util
 
+from loading_pipeline.lib.misc.callset_identity import guard_callset
 from loading_pipeline.lib.paths import (
     metadata_for_run_path,
     relatedness_check_tsv_path,
@@ -13,6 +14,7 @@ from loading_pipeline.lib.tasks.base.base_loading_run_params import (
 from loading_pipeline.lib.tasks.files import GCSorLocalTarget
 
 
+@guard_callset
 @luigi.util.inherits(BaseLoadingRunParams)
 class BaseWriteMetadataForRunTask(luigi.Task):
     def output(self) -> luigi.Target:
@@ -41,6 +43,7 @@ class BaseWriteMetadataForRunTask(luigi.Task):
                 self.reference_genome,
                 self.dataset_type,
                 self.callset_path,
+                self.callset_identity,
             ),
             'sample_qc': {},
         }

@@ -3,6 +3,7 @@ import luigi
 import luigi.util
 
 from loading_pipeline.lib.core.feature_flag import FeatureFlag
+from loading_pipeline.lib.misc.callset_identity import guard_callset
 from loading_pipeline.lib.misc.family_loading_failures import (
     get_families_failed_imputed_sex_ploidy,
     get_families_failed_missing_samples,
@@ -47,6 +48,7 @@ def format_failures(failed_families):
     }
 
 
+@guard_callset
 @luigi.util.inherits(BaseLoadingRunParams)
 class WriteRemappedAndSubsettedCallsetTask(BaseWriteTask):
     def complete(self) -> luigi.Target:
@@ -81,6 +83,7 @@ class WriteRemappedAndSubsettedCallsetTask(BaseWriteTask):
                 self.reference_genome,
                 self.dataset_type,
                 self.callset_path,
+                self.callset_identity,
             ),
         )
 
@@ -161,6 +164,7 @@ class WriteRemappedAndSubsettedCallsetTask(BaseWriteTask):
                     self.reference_genome,
                     self.dataset_type,
                     self.callset_path,
+                    self.callset_identity,
                 ),
             )
             sex_check_ht = hl.read_table(self.input()[-1].path)

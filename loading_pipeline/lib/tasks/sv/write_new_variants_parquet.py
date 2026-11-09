@@ -2,6 +2,7 @@ import hail as hl
 import luigi
 import luigi.util
 
+from loading_pipeline.lib.misc.callset_identity import guard_callset
 from loading_pipeline.lib.paths import (
     new_variants_parquet_path,
     valid_reference_dataset_path,
@@ -22,6 +23,7 @@ from loading_pipeline.lib.tasks.sv.write_postprocessed_callset import (
 GENCODE_RELEASE = 42
 
 
+@guard_callset
 @luigi.util.inherits(BaseLoadingRunParams)
 class WriteNewSvVariantsParquetTask(BaseWriteParquetTask):
     @property

@@ -2,6 +2,7 @@ import hail as hl
 import luigi
 import luigi.util
 
+from loading_pipeline.lib.misc.callset_identity import guard_callset
 from loading_pipeline.lib.misc.validation import (
     ALL_VALIDATIONS,
     SKIPPABLE_VALIDATIONS,
@@ -28,6 +29,7 @@ from loading_pipeline.lib.tasks.write_validation_errors_for_run import (
 MAX_SNV_INDEL_ALLELE_LENGTH = 500
 
 
+@guard_callset
 @luigi.util.inherits(BaseLoadingRunParams)
 class ValidateCallsetTask(BaseUpdateTask):
     @property
@@ -60,6 +62,7 @@ class ValidateCallsetTask(BaseUpdateTask):
                 self.reference_genome,
                 self.dataset_type,
                 self.callset_path,
+                self.callset_identity,
             ),
         )
 
@@ -90,6 +93,7 @@ class ValidateCallsetTask(BaseUpdateTask):
                 self.reference_genome,
                 self.dataset_type,
                 self.callset_path,
+                self.callset_identity,
             ),
         )
         if self.dataset_type.filter_invalid_sites:

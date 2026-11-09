@@ -2,6 +2,7 @@ import hail as hl
 import luigi
 import luigi.util
 
+from loading_pipeline.lib.misc.callset_identity import guard_callset
 from loading_pipeline.lib.misc.family_entries import (
     compute_callset_family_entries_ht,
     deduplicate_by_most_non_ref_calls,
@@ -22,6 +23,7 @@ from loading_pipeline.lib.tasks.write_remapped_and_subsetted_callset import (
 )
 
 
+@guard_callset
 @luigi.util.inherits(BaseLoadingRunParams)
 class WriteNewEntriesParquetTask(BaseWriteParquetTask):
     def output(self) -> luigi.Target:

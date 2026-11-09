@@ -2,6 +2,7 @@ import hail as hl
 import luigi
 import luigi.util
 
+from loading_pipeline.lib.misc.callset_identity import guard_callset
 from loading_pipeline.lib.misc.callsets import get_additional_row_fields
 from loading_pipeline.lib.misc.io import (
     import_callset,
@@ -21,6 +22,7 @@ from loading_pipeline.lib.tasks.write_validation_errors_for_run import (
 )
 
 
+@guard_callset
 @luigi.util.inherits(BaseLoadingRunParams)
 class WriteImportedCallsetTask(BaseWriteTask):
     priority = 2
@@ -44,6 +46,7 @@ class WriteImportedCallsetTask(BaseWriteTask):
                 self.reference_genome,
                 self.dataset_type,
                 self.callset_path,
+                self.callset_identity,
             ),
         )
 

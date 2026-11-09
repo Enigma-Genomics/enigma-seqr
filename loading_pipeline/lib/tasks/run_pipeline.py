@@ -1,6 +1,7 @@
 import luigi
 import luigi.util
 
+from loading_pipeline.lib.misc.callset_identity import guard_callset
 from loading_pipeline.lib.tasks.base.base_loading_run_params import (
     BaseLoadingRunParams,
 )
@@ -16,6 +17,7 @@ from loading_pipeline.lib.tasks.exports.write_new_variants_parquet import (
 from loading_pipeline.lib.tasks.write_metadata_for_run import WriteMetadataForRunTask
 
 
+@guard_callset
 @luigi.util.inherits(BaseLoadingRunParams)
 class RunPipelineTask(luigi.WrapperTask):
     attempt_id = luigi.IntParameter()

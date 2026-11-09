@@ -3,6 +3,7 @@ import luigi.util
 
 from loading_pipeline.lib.core import DatasetType
 from loading_pipeline.lib.core.feature_flag import FeatureFlag
+from loading_pipeline.lib.misc.callset_identity import guard_callset
 from loading_pipeline.lib.paths import pipeline_run_success_file_path
 from loading_pipeline.lib.tasks.base.base_loading_run_params import (
     BaseLoadingRunParams,
@@ -15,6 +16,7 @@ from loading_pipeline.lib.tasks.run_pipeline import RunPipelineTask
 from loading_pipeline.lib.tasks.sv.run_pipeline import RunSvPipelineTask
 
 
+@guard_callset
 @luigi.util.inherits(BaseLoadingRunParams)
 class WriteSuccessFileTask(luigi.Task):
     attempt_id = luigi.IntParameter()

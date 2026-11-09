@@ -4,6 +4,7 @@ import luigi
 
 from loading_pipeline.lib.core.feature_flag import FeatureFlag
 from loading_pipeline.lib.methods.sex_check import compute_sex_check_ht
+from loading_pipeline.lib.misc.callset_identity import guard_callset
 from loading_pipeline.lib.misc.io import import_imputed_sex
 from loading_pipeline.lib.paths import (
     imported_callset_path,
@@ -19,6 +20,7 @@ from loading_pipeline.lib.tasks.write_postprocessed_callset import (
 from loading_pipeline.lib.tasks.write_tdr_metrics_files import WriteTDRMetricsFilesTask
 
 
+@guard_callset
 @luigi.util.inherits(BaseLoadingRunParams)
 class WriteSexCheckTableTask(BaseWriteTask):
     callset_path = luigi.Parameter()
@@ -40,6 +42,7 @@ class WriteSexCheckTableTask(BaseWriteTask):
                 self.reference_genome,
                 self.dataset_type,
                 self.callset_path,
+                self.callset_identity,
             ),
         )
 
@@ -73,6 +76,7 @@ class WriteSexCheckTableTask(BaseWriteTask):
                     self.reference_genome,
                     self.dataset_type,
                     self.callset_path,
+                    self.callset_identity,
                 ),
             )
             ht = compute_sex_check_ht(mt)

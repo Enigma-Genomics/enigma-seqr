@@ -7,10 +7,15 @@ from pydantic import (
     Field,
     conint,
     field_validator,
+    model_validator,
     root_validator,
 )
 
 from loading_pipeline.lib.core import DatasetType, ReferenceGenome, SampleType
+from loading_pipeline.lib.misc.callset_identity import (
+    normalize_identity,
+    verify_callset_identity,
+)
 from loading_pipeline.lib.misc.clickhouse import ClickhouseReferenceDataset
 from loading_pipeline.lib.misc.validation import ALL_VALIDATIONS, SKIPPABLE_VALIDATIONS
 
@@ -29,6 +34,7 @@ class PipelineRunnerRequest(BaseModel):
 
 class LoadingPipelineRequest(PipelineRunnerRequest):
     attempt_id: conint(ge=0, le=MAX_LOADING_PIPELINE_ATTEMPTS - 1) = 0
+    callset_identity: dict = Field(default_factory=dict)
     callset_path: str
     project_guids: list[str] = Field(
         min_length=1,
@@ -41,6 +47,14 @@ class LoadingPipelineRequest(PipelineRunnerRequest):
     skip_check_sex_and_relatedness: bool = False
     skip_expect_tdr_metrics: bool = False
     validations_to_skip: list[Literal[*STRINGIFIED_SKIPPABLE_VALIDATIONS]] = []
+
+    @model_validator(mode='after')
+    def validate_callset_identity(self):
+        self.callset_identity = normalize_identity(
+            self.callset_path, self.callset_identity,
+        )
+        verify_callset_identity(self.callset_path, self.callset_identity)
+        return self
 
     def incr_attempt(self):
         if self.attempt_id == (MAX_LOADING_PIPELINE_ATTEMPTS - 1):

@@ -4,6 +4,7 @@ import hailtop.fs as hfs
 import luigi
 import luigi.util
 
+from loading_pipeline.lib.misc.callset_identity import guard_callset
 from loading_pipeline.lib.misc.clickhouse import (
     load_run_entries,
 )
@@ -18,6 +19,7 @@ from loading_pipeline.lib.tasks.files import GCSorLocalTarget
 from loading_pipeline.lib.tasks.load_clickhouse_variants import LoadClickhouseVariants
 
 
+@guard_callset
 @luigi.util.inherits(BaseLoadingRunParams)
 class LoadClickhouseEntries(luigi.Task):
     attempt_id = luigi.IntParameter()

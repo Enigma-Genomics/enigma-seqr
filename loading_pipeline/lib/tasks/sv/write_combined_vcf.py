@@ -3,6 +3,7 @@ import json
 import luigi
 import luigi.util
 
+from loading_pipeline.lib.misc.callset_identity import guard_callset
 from loading_pipeline.lib.paths import (
     imported_callset_path,
 )
@@ -20,6 +21,7 @@ from loading_pipeline.lib.tasks.sv.write_metadata_for_run import (
 )
 
 
+@guard_callset
 @luigi.util.inherits(BaseLoadingRunParams)
 class WriteCombinedSvVcf(BaseVCFTask):
     def complete(self) -> bool:
@@ -46,6 +48,7 @@ class WriteCombinedSvVcf(BaseVCFTask):
             self.reference_genome,
             self.dataset_type,
             self.callset_path,
+            self.callset_identity,
         ).removesuffix('.mt')
 
     def vcf_path(self) -> str:

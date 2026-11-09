@@ -5,6 +5,7 @@ import luigi.format
 import luigi.util
 import pandas as pd
 
+from loading_pipeline.lib.misc.callset_identity import guard_callset
 from loading_pipeline.lib.paths import existing_variants_parquet_path
 from loading_pipeline.lib.tasks.base.base_loading_run_params import (
     BaseLoadingRunParams,
@@ -17,6 +18,7 @@ from loading_pipeline.lib.tasks.write_existing_variants_parquet import (
 )
 
 
+@guard_callset
 @luigi.util.inherits(BaseLoadingRunParams)
 class WriteExistingVariantsVcfTask(BaseVCFTask):
     INFO_FIELDS: ClassVar[dict[str, tuple[str, str]]] = {

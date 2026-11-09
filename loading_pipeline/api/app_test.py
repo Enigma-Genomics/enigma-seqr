@@ -115,6 +115,7 @@ class AppTest(AioHTTPTestCase, MockedDatarootTestCase):
                 'Successfully queued': {
                     'request_type': 'LoadingPipelineRequest',
                     'callset_path': CALLSET_PATH,
+                    'callset_identity': {},
                     'dataset_type': 'SNV_INDEL',
                     'project_guids': ['project_a'],
                     'reference_genome': 'GRCh38',

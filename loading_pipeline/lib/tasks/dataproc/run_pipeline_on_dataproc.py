@@ -1,5 +1,6 @@
 import luigi
 
+from loading_pipeline.lib.misc.callset_identity import guard_callset
 from loading_pipeline.lib.tasks.base.base_loading_run_params import (
     BaseLoadingRunParams,
 )
@@ -12,6 +13,7 @@ from loading_pipeline.lib.tasks.write_existing_variants_parquet import (
 )
 
 
+@guard_callset
 @luigi.util.inherits(BaseLoadingRunParams)
 class RunPipelineOnDataprocTask(BaseRunJobOnDataprocTask):
     attempt_id = luigi.IntParameter()

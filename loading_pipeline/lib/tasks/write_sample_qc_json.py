@@ -8,6 +8,7 @@ import luigi.util
 import onnx
 
 from loading_pipeline.lib.methods.sample_qc import call_sample_qc
+from loading_pipeline.lib.misc.callset_identity import guard_callset
 from loading_pipeline.lib.misc.io import import_tdr_qc_metrics
 from loading_pipeline.lib.paths import (
     ancestry_model_rf_path,
@@ -26,6 +27,7 @@ from loading_pipeline.lib.tasks.write_remapped_and_subsetted_callset import (
 from loading_pipeline.lib.tasks.write_tdr_metrics_files import WriteTDRMetricsFilesTask
 
 
+@guard_callset
 @luigi.util.inherits(BaseLoadingRunParams)
 class WriteSampleQCJsonTask(luigi.Task):
     def output(self) -> luigi.Target:
@@ -34,6 +36,7 @@ class WriteSampleQCJsonTask(luigi.Task):
                 self.reference_genome,
                 self.dataset_type,
                 self.callset_path,
+                self.callset_identity,
             ),
         )
 

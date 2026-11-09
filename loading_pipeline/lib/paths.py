@@ -9,6 +9,7 @@ from loading_pipeline.lib.core import (
     ReferenceGenome,
     SampleType,
 )
+from loading_pipeline.lib.misc.callset_identity import identity_cache_key
 from loading_pipeline.lib.reference_datasets.reference_dataset import (
     ReferenceDataset,
 )
@@ -36,9 +37,10 @@ def _v03_reference_dataset_prefix(
     )
 
 
-def _callset_path_hash(callset_path: str) -> str:
-    # Include the most recent modified time of any
-    # of the callset shards if they exist.
+def _callset_path_hash(callset_path: str, callset_identity=None) -> str:
+    if callset_identity:
+        return identity_cache_key(callset_path, callset_identity)
+    # Preserve legacy URI-and-size cache keys for unbound requests.
     try:
         # hfs.ls throws FileNotFoundError if a non-wildcard is passed
         # but not found, but does not throw if a wildcard is passed and
@@ -49,7 +51,7 @@ def _callset_path_hash(callset_path: str) -> str:
         else:
             # f.modification_time is None for directories
             key = callset_path + str(
-                sum((f.size if f.size else 0) for f in shards),
+                sum((f.size or 0) for f in shards),
             )
     except FileNotFoundError:
         key = callset_path
@@ -87,6 +89,7 @@ def imported_callset_path(
     reference_genome: ReferenceGenome,
     dataset_type: DatasetType,
     callset_path: str,
+    callset_identity=None,
 ) -> str:
     return os.path.join(
         pipeline_prefix(
@@ -95,7 +98,7 @@ def imported_callset_path(
             dataset_type,
         ),
         'imported_callsets',
-        f'{_callset_path_hash(callset_path)}.mt',
+        f'{_callset_path_hash(callset_path, callset_identity)}.mt',
     )
 
 
@@ -103,6 +106,7 @@ def postprocessed_callset_path(
     reference_genome: ReferenceGenome,
     dataset_type: DatasetType,
     callset_path: str,
+    callset_identity=None,
 ) -> str:
     return os.path.join(
         pipeline_prefix(
@@ -111,7 +115,7 @@ def postprocessed_callset_path(
             dataset_type,
         ),
         'postprocessed_callsets',
-        f'{_callset_path_hash(callset_path)}.mt',
+        f'{_callset_path_hash(callset_path, callset_identity)}.mt',
     )
 
 
@@ -149,6 +153,7 @@ def relatedness_check_table_path(
     reference_genome: ReferenceGenome,
     dataset_type: DatasetType,
     callset_path: str,
+    callset_identity=None,
 ) -> str:
     return os.path.join(
         pipeline_prefix(
@@ -157,7 +162,7 @@ def relatedness_check_table_path(
             dataset_type,
         ),
         'relatedness_check',
-        f'{_callset_path_hash(callset_path)}.ht',
+        f'{_callset_path_hash(callset_path, callset_identity)}.ht',
     )
 
 
@@ -165,6 +170,7 @@ def relatedness_check_tsv_path(
     reference_genome: ReferenceGenome,
     dataset_type: DatasetType,
     callset_path: str,
+    callset_identity=None,
 ) -> str:
     return os.path.join(
         pipeline_prefix(
@@ -173,7 +179,7 @@ def relatedness_check_tsv_path(
             dataset_type,
         ),
         'relatedness_check',
-        f'{_callset_path_hash(callset_path)}.tsv',
+        f'{_callset_path_hash(callset_path, callset_identity)}.tsv',
     )
 
 
@@ -181,6 +187,7 @@ def sample_qc_json_path(
     reference_genome: ReferenceGenome,
     dataset_type: DatasetType,
     callset_path: str,
+    callset_identity=None,
 ) -> str:
     return os.path.join(
         pipeline_prefix(
@@ -189,7 +196,7 @@ def sample_qc_json_path(
             dataset_type,
         ),
         'sample_qc',
-        f'{_callset_path_hash(callset_path)}.json',
+        f'{_callset_path_hash(callset_path, callset_identity)}.json',
     )
 
 
@@ -197,6 +204,7 @@ def remapped_and_subsetted_callset_path(
     reference_genome: ReferenceGenome,
     dataset_type: DatasetType,
     callset_path: str,
+    callset_identity=None,
 ) -> str:
     return os.path.join(
         pipeline_prefix(
@@ -205,7 +213,7 @@ def remapped_and_subsetted_callset_path(
             dataset_type,
         ),
         'remapped_and_subsetted_callsets',
-        f'{_callset_path_hash(callset_path)}.mt',
+        f'{_callset_path_hash(callset_path, callset_identity)}.mt',
     )
 
 
@@ -227,6 +235,7 @@ def sex_check_table_path(
     reference_genome: ReferenceGenome,
     dataset_type: DatasetType,
     callset_path: str,
+    callset_identity=None,
 ) -> str:
     return os.path.join(
         pipeline_prefix(
@@ -235,7 +244,7 @@ def sex_check_table_path(
             dataset_type,
         ),
         'sex_check',
-        f'{_callset_path_hash(callset_path)}.ht',
+        f'{_callset_path_hash(callset_path, callset_identity)}.ht',
     )
 
 

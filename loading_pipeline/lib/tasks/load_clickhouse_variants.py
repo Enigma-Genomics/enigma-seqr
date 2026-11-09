@@ -1,6 +1,7 @@
 import luigi
 import luigi.util
 
+from loading_pipeline.lib.misc.callset_identity import guard_callset
 from loading_pipeline.lib.misc.clickhouse import (
     load_run_variants,
 )
@@ -14,6 +15,7 @@ from loading_pipeline.lib.tasks.files import GCSorLocalTarget
 from loading_pipeline.lib.tasks.write_success_file import WriteSuccessFileTask
 
 
+@guard_callset
 @luigi.util.inherits(BaseLoadingRunParams)
 class LoadClickhouseVariants(luigi.Task):
     attempt_id = luigi.IntParameter()

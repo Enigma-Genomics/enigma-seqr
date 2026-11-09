@@ -2,6 +2,7 @@ import hail as hl
 import luigi
 import luigi.util
 
+from loading_pipeline.lib.misc.callset_identity import guard_callset
 from loading_pipeline.lib.paths import relatedness_check_tsv_path
 from loading_pipeline.lib.tasks.base.base_loading_run_params import BaseLoadingRunParams
 from loading_pipeline.lib.tasks.files import GCSorLocalTarget
@@ -10,6 +11,7 @@ from loading_pipeline.lib.tasks.write_relatedness_check_table import (
 )
 
 
+@guard_callset
 @luigi.util.inherits(BaseLoadingRunParams)
 class WriteRelatednessCheckTsvTask(luigi.Task):
     def output(self) -> luigi.Target:
@@ -18,6 +20,7 @@ class WriteRelatednessCheckTsvTask(luigi.Task):
                 self.reference_genome,
                 self.dataset_type,
                 self.callset_path,
+                self.callset_identity,
             ),
         )
 

@@ -35,6 +35,8 @@ class MiscTest(unittest.TestCase):
                 'WGS',
                 '--callset-path',
                 'test_callset',
+                '--callset-identity',
+                '{}',
                 '--project-guids',
                 '["R0113_test_project"]',
                 '--skip-check-sex-and-relatedness',

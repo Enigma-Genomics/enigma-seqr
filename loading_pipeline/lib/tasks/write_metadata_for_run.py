@@ -74,6 +74,7 @@ class WriteMetadataForRunTask(BaseWriteMetadataForRunTask):
                     self.reference_genome,
                     self.dataset_type,
                     self.callset_path,
+                    self.callset_identity,
                 ),
             ) as f:
                 metadata_json['sample_qc'] = {

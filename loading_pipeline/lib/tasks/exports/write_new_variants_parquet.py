@@ -2,6 +2,7 @@ import hail as hl
 import luigi
 import luigi.util
 
+from loading_pipeline.lib.misc.callset_identity import guard_callset
 from loading_pipeline.lib.paths import (
     new_variants_parquet_path,
     new_variants_table_path,
@@ -16,6 +17,7 @@ from loading_pipeline.lib.tasks.write_new_variants_table import (
 )
 
 
+@guard_callset
 @luigi.util.inherits(BaseLoadingRunParams)
 class WriteNewVariantsParquetTask(BaseWriteParquetTask):
     def output(self) -> luigi.Target:

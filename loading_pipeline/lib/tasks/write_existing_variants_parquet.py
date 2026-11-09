@@ -1,6 +1,7 @@
 import luigi
 import luigi.util
 
+from loading_pipeline.lib.misc.callset_identity import guard_callset
 from loading_pipeline.lib.misc.clickhouse import export_existing_variants_to_parquet
 from loading_pipeline.lib.paths import existing_variants_parquet_path
 from loading_pipeline.lib.tasks.base.base_loading_run_params import (
@@ -11,6 +12,7 @@ from loading_pipeline.lib.tasks.files import (
 )
 
 
+@guard_callset
 @luigi.util.inherits(BaseLoadingRunParams)
 class WriteExistingVariantsParquetTask(luigi.Task):
     priority = 1

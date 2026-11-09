@@ -19,6 +19,7 @@ class BaseLoadingRunParams(luigi.Task):
     run_id = luigi.Parameter()
     sample_type = luigi.EnumParameter(enum=SampleType)
     callset_path = luigi.Parameter()
+    callset_identity = luigi.DictParameter(default={})
     project_guids = luigi.ListParameter(default=[])
     skip_check_sex_and_relatedness = luigi.BoolParameter(
         default=False,

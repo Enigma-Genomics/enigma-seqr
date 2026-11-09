@@ -3,6 +3,7 @@ import luigi
 import luigi.util
 
 from loading_pipeline.lib.methods.relatedness import call_relatedness
+from loading_pipeline.lib.misc.callset_identity import guard_callset
 from loading_pipeline.lib.paths import (
     relatedness_check_table_path,
 )
@@ -16,6 +17,7 @@ from loading_pipeline.lib.tasks.reference_data.updated_reference_dataset import 
 from loading_pipeline.lib.tasks.validate_callset import ValidateCallsetTask
 
 
+@guard_callset
 @luigi.util.inherits(BaseLoadingRunParams)
 class WriteRelatednessCheckTableTask(BaseWriteTask):
     def output(self) -> luigi.Target:
@@ -24,6 +26,7 @@ class WriteRelatednessCheckTableTask(BaseWriteTask):
                 self.reference_genome,
                 self.dataset_type,
                 self.callset_path,
+                self.callset_identity,
             ),
         )
 

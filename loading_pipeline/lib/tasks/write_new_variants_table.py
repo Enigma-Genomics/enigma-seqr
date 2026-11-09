@@ -4,6 +4,7 @@ import hail as hl
 import luigi
 import luigi.util
 
+from loading_pipeline.lib.misc.callset_identity import guard_callset
 from loading_pipeline.lib.misc.io import checkpoint, import_parquet, remap_pedigree_hash
 from loading_pipeline.lib.misc.math import constrain
 from loading_pipeline.lib.misc.vep import run_vep
@@ -34,6 +35,7 @@ MAX_PARTITIONS = 10000
 GENCODE_FOR_VEP_RELEASE = 44
 
 
+@guard_callset
 @luigi.util.inherits(BaseLoadingRunParams)
 class WriteNewVariantsTableTask(BaseWriteTask):
     @property
@@ -94,6 +96,7 @@ class WriteNewVariantsTableTask(BaseWriteTask):
                 self.reference_genome,
                 self.dataset_type,
                 self.callset_path,
+                self.callset_identity,
             ),
         ).rows()
 

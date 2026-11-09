@@ -5,6 +5,7 @@ import luigi
 import luigi.freezing
 import luigi.util
 
+from loading_pipeline.lib.misc.callset_identity import guard_callset
 from loading_pipeline.lib.misc.validation import SeqrValidationError
 from loading_pipeline.lib.paths import validation_errors_for_run_path
 from loading_pipeline.lib.tasks.base.base_loading_run_params import BaseLoadingRunParams
@@ -26,6 +27,7 @@ def _deep_merge_dicts(existing: dict, new: dict) -> dict:
     return result
 
 
+@guard_callset
 @luigi.util.inherits(BaseLoadingRunParams)
 class UpdatedValidationErrorsForRunTask(luigi.Task):
     project_guids = luigi.ListParameter()
