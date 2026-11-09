@@ -157,6 +157,12 @@ else:
     MEDIA_URL = '/media/'
 
 LOADING_DATASETS_DIR = os.environ.get('LOADING_DATASETS_DIR')
+# Managed aliases resolve to unique prepared inputs; legacy root files are snapshotted.
+CALLSET_BINDING_ENABLED = os.environ.get('CALLSET_BINDING_ENABLED', '').lower() == 'true'
+CALLSET_LOADING_MAINTENANCE = os.environ.get('CALLSET_LOADING_MAINTENANCE', '').lower() == 'true'
+CALLSET_SNAPSHOT_PREFIX = os.environ.get('CALLSET_SNAPSHOT_PREFIX', '.seqr-snapshots')
+CALLSET_PREPARED_PREFIX = os.environ.get('CALLSET_PREPARED_PREFIX', 'lossless-v1')
+CALLSET_VALIDATION_MAX_AGE = int(os.environ.get('CALLSET_VALIDATION_MAX_AGE', '3600'))
 PIPELINE_DATA_DIR = os.environ.get('PIPELINE_DATA_DIR')
 
 LOGGING = {

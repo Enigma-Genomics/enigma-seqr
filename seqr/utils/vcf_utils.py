@@ -1,6 +1,8 @@
 import os
 import re
 
+from django.conf import settings
+
 from collections import defaultdict
 
 from seqr.utils.middleware import ErrorsWarningsException
@@ -174,10 +176,14 @@ def _validate_valid_vcf_name(data_path, user, dataset_type, path_name):
     return files_to_check
 
 
-def get_vcf_list(data_path, user):
+def get_vcf_list(data_path, user, preserve_root_aliases=False):
     file_list = list_files(data_path, user, check_subfolders=True, allow_missing=False)
     data_path_list = [path.replace(data_path, '') for path in file_list if path.endswith(VCF_FILE_EXTENSIONS)]
-    return _merge_sharded_vcf(data_path_list)
+    if preserve_root_aliases:
+        snapshot_prefix = getattr(settings, 'CALLSET_SNAPSHOT_PREFIX', '.seqr-snapshots').strip('/') + '/'
+        data_path_list = [path for path in data_path_list if not path.lstrip('/').startswith(snapshot_prefix)]
+    aliases = [path for path in data_path_list if '/' not in path.lstrip('/') and path.endswith('.gatk.vcf.gz')] if preserve_root_aliases else []
+    return sorted(aliases + _merge_sharded_vcf([path for path in data_path_list if path not in aliases])) if aliases else _merge_sharded_vcf(data_path_list)
 
 
 def _merge_sharded_vcf(vcf_files):

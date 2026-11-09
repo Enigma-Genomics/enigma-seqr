@@ -4,12 +4,14 @@ import os
 import requests
 import urllib3
 
+from django.conf import settings
 from django.core.exceptions import PermissionDenied
 from django.db.models import Max, F, Q
 from django.http.response import HttpResponse
 from requests.exceptions import ConnectionError as RequestConnectionError
 
 from clickhouse_search.search import delete_clickhouse_project
+from seqr.utils.callset_binding import resolve_callset, sign_validation, validated_callset, verify_identity
 from seqr.utils.communication_utils import send_project_notification
 from seqr.utils.add_data_utils import trigger_data_loading, get_missing_family_samples, get_loaded_individual_ids, trigger_delete_families_search
 from seqr.utils.logging_utils import SeqrLogger
@@ -196,7 +198,9 @@ def loading_vcfs(request):
     if anvil_enabled():
         raise PermissionDenied()
     return create_json_response({
-        'vcfs': get_vcf_list(LOADING_DATASETS_DIR, request.user),
+        'vcfs': get_vcf_list(LOADING_DATASETS_DIR, request.user, **(
+            {'preserve_root_aliases': True} if settings.CALLSET_BINDING_ENABLED else {}
+        )),
     })
 
 
@@ -204,11 +208,23 @@ def loading_vcfs(request):
 def validate_callset(request):
     request_json = json.loads(request.body)
     dataset_type = request_json['datasetType'] if anvil_enabled() else None
+    source_path = _callset_path(request_json)
+    try:
+        resolved_path, identity = resolve_callset(source_path)
+    except ValueError as e:
+        return create_json_response({'error': str(e)}, status=400)
     samples = validate_vcf_and_get_samples(
-        _callset_path(request_json), request.user, request_json['genomeVersion'], dataset_type=dataset_type,
+        resolved_path, request.user, request_json['genomeVersion'], dataset_type=dataset_type,
         path_name=request_json['filePath'],
     )
-    return create_json_response({'vcfSamples': samples})
+    response = {'vcfSamples': samples}
+    if identity:
+        try:
+            verify_identity(identity)
+        except ValueError as e:
+            return create_json_response({'error': str(e)}, status=400)
+        response['callsetValidation'] = sign_validation(request_json, request.user, source_path, identity, samples)
+    return create_json_response(response)
 
 
 def _callset_path(request_json):
@@ -273,7 +289,13 @@ def _fetch_airtable_loadable_project_samples(user, dataset_type, sample_type):
 
 @pm_or_data_manager_required
 def load_data(request):
+    if getattr(settings, 'CALLSET_LOADING_MAINTENANCE', False):
+        return create_json_response({'error': 'Data loading is briefly paused for maintenance. Please try submitting again shortly.'}, status=503)
     request_json = json.loads(request.body)
+    try:
+        callset_path, callset_identity = validated_callset(request_json, request.user, _callset_path(request_json))
+    except ValueError as e:
+        return create_json_response({'error': str(e)}, status=400)
     vcf_samples = request_json['vcfSamples']
     sample_type = request_json['sampleType']
     dataset_type = request_json.get('datasetType', Dataset.DATASET_TYPE_VARIANT_CALLS)
@@ -284,6 +306,9 @@ def load_data(request):
     if len(projects_by_guid) < len(projects):
         missing = sorted(set(project_samples.keys()) - set(projects_by_guid.keys()))
         return create_json_response({'error': f'The following projects are invalid: {", ".join(missing)}'}, status=400)
+
+    if callset_identity and any(str(p.genome_version) != str(request_json['genomeVersion']) for p in projects_by_guid.values()):
+        return create_json_response({'error': 'Selected project genome version does not match the validated callset.'}, status=400)
 
     errors = []
     individual_ids = []
@@ -310,7 +335,7 @@ def load_data(request):
 
     success = trigger_data_loading(
         projects_by_guid.values(), individual_ids, sample_type, dataset_type, request_json['genomeVersion'],
-        _callset_path(request_json), user=request.user, validations_to_skip=request_json.get('validationsToSkip'),
+        callset_path, user=request.user, validations_to_skip=request_json.get('validationsToSkip'),
         **loading_kwargs,
     )
 
