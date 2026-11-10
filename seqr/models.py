@@ -1253,3 +1253,6 @@ class PhenotypePrioritization(ModelWithGUID):
 
     class Meta:
         json_fields = ['gene_id', 'tool', 'rank', 'disease_id', 'disease_name', 'scores']
+
+# Registered here so Django discovers the internal preparation tables.
+from seqr.preparation_models import PreparationLedger, PreparationOutbox  # noqa: E402,F401
