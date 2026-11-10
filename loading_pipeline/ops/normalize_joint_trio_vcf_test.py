@@ -114,6 +114,28 @@ class IntakeTest(unittest.TestCase):
         self.assertFalse(receipt['calling_history_independently_verified'])
         self.assertFalse(receipt['clinical_ready'])
 
+    def test_broad_hla_contig_requires_exact_dictionary_match(self):
+        contig = 'HLA-A*01:01:01:01'
+        self.reference['contigs'][contig] = 3503
+        header = HEADER.replace(
+            '##FORMAT=', f'##contig=<ID={contig},length=3503>\n##FORMAT=',
+        )
+        row = ROW.replace('1\t10', f'{contig}\t10')
+        for invalid in (header.replace(contig, contig + 'X'), header.replace('3503', '3504')):
+            self.write(invalid + row)
+            with self.assertRaisesRegex(ValueError, 'Contig mismatch'):
+                self.run_intake()
+        self.write(header + row)
+        receipt = self.run_intake()
+        self.assertEqual(receipt['records'], 1)
+        with pysam.TabixFile(str(self.output / 'callset.vcf.gz')) as indexed:
+            self.assertEqual(list(indexed.fetch(contig)), [row.rstrip()])
+
+    def test_hla_contig_characters_are_invalid_in_sample_ids(self):
+        self.manifest['individuals'][0]['sample_id'] = 'HLA-A*01:01:01:01'
+        with self.assertRaisesRegex(ValueError, 'Invalid or duplicate sample_id'):
+            self.run_intake()
+
     def test_invalid_records_cleanup(self):
         for row in [
             ROW.replace('0|1', '0/9'),

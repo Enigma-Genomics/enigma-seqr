@@ -120,7 +120,11 @@ def contract(manifest, reference, family_id, joint_report_id):
     )
     require(
         all(
-            identifier(k) and type(v) is int and 0 < v < 2**29
+            isinstance(k, str)
+            # Broad GRCh38 includes HLA contigs such as HLA-A*01:01:01:01.
+            and re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.:*-]{0,127}', k)
+            and type(v) is int
+            and 0 < v < 2**29
             for k, v in contigs.items()
         ),
         'Invalid reference contig',
