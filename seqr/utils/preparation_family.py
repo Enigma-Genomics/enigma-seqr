@@ -59,7 +59,13 @@ def apply_family_metadata(envelope, ledger, user):
     if ledger.review_sequence and ledger.request_id != envelope['request_id']:
         raise PreparationConflict('Family membership, roles, source or assay changed')
     expected_id = envelope['family_id']
-    projects = list(Project.objects.select_for_update().filter(name=expected_id))
+    project_name = envelope['joint_report_id']
+    projects = Project.objects.select_for_update()
+    if ledger.project_guid:
+        projects = projects.filter(guid=ledger.project_guid)
+    else:
+        projects = projects.filter(name__in=[expected_id, project_name])
+    projects = list(projects)
     if len(projects) > 1:
         raise PreparationConflict('Ambiguous family project identity')
     if projects:
@@ -97,7 +103,7 @@ def apply_family_metadata(envelope, ledger, user):
         if ledger.review_sequence or ledger.project_guid:
             raise PreparationConflict('Previously owned family project missing')
         project = create_model_from_json(
-            Project, {'name': expected_id, 'genome_version': '38'}, user
+            Project, {'name': project_name, 'genome_version': '38'}, user
         )
         family = create_model_from_json(
             Family, {'project': project, 'family_id': expected_id}, user
