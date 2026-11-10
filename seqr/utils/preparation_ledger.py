@@ -18,6 +18,10 @@ def canonical_digest(value):
 
 
 def validate_envelope(envelope):
+    if envelope.get('kind') == 'family_joint_callset':
+        # Lazy import keeps family validation separate from the singleton contract.
+        from seqr.utils.preparation_family_contract import validate_family_envelope
+        return validate_family_envelope(envelope)
     revision = envelope.get('revision')
     content = {key: value for key, value in envelope.items() if key != 'revision'}
     if not isinstance(revision, str) or not re.fullmatch('[a-f0-9]{64}', revision) or canonical_digest(content) != revision:
@@ -26,6 +30,8 @@ def validate_envelope(envelope):
         raise PreparationConflict('Unsupported preparation schema')
     if not isinstance(envelope.get('accession_id'), str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,127}', envelope['accession_id']):
         raise PreparationConflict('Invalid subject identity')
+    if re.fullmatch(r'JR_[a-f0-9]{64}', envelope['accession_id']):
+        raise PreparationConflict('Reserved family project namespace')
     if not isinstance(envelope.get('request_id'), str) or not re.fullmatch('[a-f0-9]{64}', envelope['request_id']):
         raise PreparationConflict('Invalid request identity')
     source = envelope.get('source')
@@ -75,6 +81,7 @@ def validate_envelope(envelope):
         raise PreparationConflict('Invalid inheritance')
     if envelope.get('prepared') is not False or envelope.get('searchable') is not False or envelope.get('manual_load_required') is not True:
         raise PreparationConflict('Invalid preparation lifecycle')
+    return envelope['accession_id']
 
 
 @transaction.atomic
@@ -85,15 +92,17 @@ def apply_preparation(envelope, apply_metadata):
     ledger.metadata_state_token before updates. Initial adoption of existing rows is
     prohibited without a separately reviewed baseline. It must not do external IO.
     """
-    validate_envelope(envelope)
+    subject_key = validate_envelope(envelope)
     # The unique subject constraint plus get_or_create handles first-writer races.
     # A PostgreSQL SELECT FOR UPDATE serializes subsequent reviews for this subject.
-    ledger, _ = PreparationLedger.objects.get_or_create(subject_key=envelope['accession_id'])
+    ledger, _ = PreparationLedger.objects.get_or_create(subject_key=subject_key)
     ledger = PreparationLedger.objects.select_for_update().get(pk=ledger.pk)
     revision, sequence = envelope['revision'], envelope['review_sequence']
     historical = PreparationOutbox.objects.filter(ledger=ledger, revision=revision, review_sequence=sequence).first()
     if historical:
         return historical
+    if ledger.review_sequence and ledger.request_id != envelope['request_id']:
+        raise PreparationConflict('Source or assay changes require a separate re-preparation workflow')
     if sequence != ledger.review_sequence + 1 or (envelope['expected_previous_revision'] or '') != ledger.revision:
         raise PreparationConflict('Stale or out-of-order metadata review')
     project_guid, token = apply_metadata(ledger)
@@ -105,9 +114,13 @@ def apply_preparation(envelope, apply_metadata):
     ledger.project_guid = project_guid
     ledger.metadata_state_token = token
     ledger.save()
+    identity = ({'kind': 'family_joint_callset', 'subject_key': subject_key,
+                 'joint_report_id': envelope['joint_report_id'], 'family_id': envelope['family_id']}
+                if envelope.get('kind') == 'family_joint_callset' else {'accession_id': ledger.subject_key})
     payload = {
+        **identity,
         'request_id': envelope['request_id'], 'revision': revision,
-        'review_sequence': sequence, 'accession_id': ledger.subject_key,
+        'review_sequence': sequence,
         'project_guid': project_guid, 'status': 'prepared', 'prepared': True,
         'searchable': False, 'manual_load_required': True,
     }
