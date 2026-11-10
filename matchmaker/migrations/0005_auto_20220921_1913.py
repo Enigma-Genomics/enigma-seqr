@@ -2,6 +2,7 @@
 
 from copy import deepcopy
 from collections import defaultdict
+from functools import lru_cache
 from django.db import migrations, models
 import django.db.models.deletion
 import json
@@ -13,7 +14,9 @@ from seqr.utils.xpos_utils import get_chrom_pos
 
 MAX_GUID_SIZE = 30
 
-liftover_to_38 = LiftOver('hg19', 'hg38')
+@lru_cache(maxsize=1)
+def _liftover_to_38():
+    return LiftOver('hg19', 'hg38')
 
 
 def _get_model_id(chrom, pos, end, ref, alt):
@@ -41,7 +44,7 @@ def _get_linked_variant(submission, variant, family_variants):
     if not variant_models and \
             submission.individual.family.project.genome_version == '38' and variant['assembly'] == 'GRCh37':
         lifted_variant = deepcopy(variant)
-        lifted = liftover_to_38.convert_coordinate(f'chr{variant["referenceName"]}', int(variant['start']))
+        lifted = _liftover_to_38().convert_coordinate(f'chr{variant["referenceName"]}', int(variant['start']))
         lifted_variant['start'] = lifted[0][1]
         variant_models = [sv for sv in family_variants if _is_match(sv, lifted_variant)]
 
