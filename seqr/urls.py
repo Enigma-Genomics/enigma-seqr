@@ -117,6 +117,7 @@ from seqr.views.apis.users_api import \
     update_user, \
     forgot_password
 
+from seqr.views.apis.pipeline_status_api import daily_sample_status
 from seqr.views.apis.data_manager_api import update_rna_seq, load_phenotype_prioritization_data, \
     callset_sample_type, validate_callset, get_loaded_projects, load_data, loading_vcfs, proxy_to_luigi, \
     trigger_delete_project, trigger_delete_family
@@ -332,6 +333,7 @@ api_endpoints = {
     'data_management/get_all_users': get_all_users,
     'data_management/update_rna_seq': update_rna_seq,
     'data_management/load_phenotype_prioritization_data': load_phenotype_prioritization_data,
+    'data_management/daily_sample_status': daily_sample_status,
     'data_management/loading_vcfs': loading_vcfs,
     'data_management/callset_sample_type': callset_sample_type,
     'data_management/validate_callset': validate_callset,

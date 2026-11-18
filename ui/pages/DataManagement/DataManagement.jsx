@@ -7,13 +7,12 @@ import { getUser } from 'redux/selectors'
 import { Error404, Error401 } from 'shared/components/page/Errors'
 
 import AddIGV from './components/AddIGV'
+import PipelineStatus from './components/PipelineStatus'
 import LoadData from './components/LoadData'
 import RnaSeq from './components/RnaSeq'
 import Users from './components/Users'
 import PhenotypePrioritization from './components/PhenotypePrioritization'
 import TRIGGER_SEARCH_DATA_UPDATE_PAGES from './components/TriggerSearchDataUpdatePages'
-
-const IFRAME_STYLE = { position: 'fixed', left: '0', top: '95px' }
 
 const LOCAL_PM_DATA_MANAGEMENT_PAGES = [
   { path: 'load_data', component: LoadData },
@@ -35,16 +34,9 @@ const DATA_MANAGEMENT_PAGES = [
   { path: 'phenotype_prioritization', component: PhenotypePrioritization },
 ]
 
-const IframePage = ({ title, src }) => <iframe width="100%" height="100%" title={title} style={IFRAME_STYLE} src={src} />
-
-IframePage.propTypes = {
-  title: PropTypes.string,
-  src: PropTypes.string,
-}
-
 const LOCAL_CLICKHOUSE_DATA_MANAGEMENT_PAGES = [
   ...DATA_MANAGEMENT_PAGES,
-  { path: 'pipeline_status', component: () => <IframePage title="Loading UI" src="/luigi_ui/static/visualiser/index.html" /> },
+  { path: 'pipeline_status', component: PipelineStatus },
   ...TRIGGER_SEARCH_DATA_UPDATE_PAGES,
 ]
 
