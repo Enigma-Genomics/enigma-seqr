@@ -18,7 +18,6 @@ import {
   DATASET_TYPE_MITO_CALLS,
   DATASET_TYPE_SNV_INDEL_CALLS,
   GENOME_VERSION_FIELD,
-  LoadDataVCFMessage,
 } from 'shared/utils/constants'
 
 const formatProjectOption = opt => ({
@@ -218,7 +217,6 @@ const LoadData = ({ user, location }) => {
 
   return (
     <div>
-      {!user.isAnvil && <LoadDataVCFMessage isAnvil={false} />}
       {user.manualLoadNotice && <Message warning content={user.manualLoadNotice} />}
       <FormWizard
         pages={loadPages}
