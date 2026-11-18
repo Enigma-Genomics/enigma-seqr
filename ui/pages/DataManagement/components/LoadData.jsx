@@ -211,6 +211,7 @@ const LoadData = ({ user, location }) => {
   const { isAnvil, manualLoadGenomeVersion } = user
   const pages = isAnvil ? MULTI_DATA_TYPE_LOAD_DATA_PAGES : LOAD_DATA_PAGES
   const initialValues = initialLoadValues(location?.search)
+  if (manualLoadGenomeVersion) initialValues.genomeVersion = manualLoadGenomeVersion
   const loadPages = manualLoadGenomeVersion ? pages.map(page => ({
     ...page, fields: page.fields.filter(field => field.name !== GENOME_VERSION_FIELD.name),
   })) : pages
@@ -222,7 +223,7 @@ const LoadData = ({ user, location }) => {
       <FormWizard
         pages={loadPages}
         formatSubmitUrl={formatSubmitUrl}
-        initialValues={manualLoadGenomeVersion ? { ...initialValues, genomeVersion: manualLoadGenomeVersion } : initialValues}
+        initialValues={initialValues}
         successMessage="Data loading has been triggered"
         noModal
       />
