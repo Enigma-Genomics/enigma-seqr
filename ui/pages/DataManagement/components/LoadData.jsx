@@ -1,5 +1,6 @@
 import React from 'react'
 import PropTypes from 'prop-types'
+import { Message } from 'semantic-ui-react'
 import { connect } from 'react-redux'
 import queryString from 'query-string'
 import { FormSpy, useField, useForm } from 'react-final-form'
@@ -206,18 +207,28 @@ export const initialLoadValues = (search = '') => {
   return [SAMPLE_TYPE_EXOME, SAMPLE_TYPE_GENOME].includes(sampleType) ? { sampleType } : {}
 }
 
-const LoadData = ({ user, location }) => (
-  <div>
-    {!user.isAnvil && <LoadDataVCFMessage isAnvil={false} />}
-    <FormWizard
-      pages={user.isAnvil ? MULTI_DATA_TYPE_LOAD_DATA_PAGES : LOAD_DATA_PAGES}
-      formatSubmitUrl={formatSubmitUrl}
-      initialValues={initialLoadValues(location?.search)}
-      successMessage="Data loading has been triggered"
-      noModal
-    />
-  </div>
-)
+const LoadData = ({ user, location }) => {
+  const { isAnvil, manualLoadGenomeVersion } = user
+  const pages = isAnvil ? MULTI_DATA_TYPE_LOAD_DATA_PAGES : LOAD_DATA_PAGES
+  const initialValues = initialLoadValues(location?.search)
+  const loadPages = manualLoadGenomeVersion ? pages.map(page => ({
+    ...page, fields: page.fields.filter(field => field.name !== GENOME_VERSION_FIELD.name),
+  })) : pages
+
+  return (
+    <div>
+      {!user.isAnvil && <LoadDataVCFMessage isAnvil={false} />}
+      {user.manualLoadNotice && <Message warning content={user.manualLoadNotice} />}
+      <FormWizard
+        pages={loadPages}
+        formatSubmitUrl={formatSubmitUrl}
+        initialValues={manualLoadGenomeVersion ? { ...initialValues, genomeVersion: manualLoadGenomeVersion } : initialValues}
+        successMessage="Data loading has been triggered"
+        noModal
+      />
+    </div>
+  )
+}
 
 LoadData.propTypes = {
   user: PropTypes.object,

@@ -158,6 +158,8 @@ else:
 
 LOADING_DATASETS_DIR = os.environ.get('LOADING_DATASETS_DIR')
 # Managed aliases resolve to unique prepared inputs; legacy root files are snapshotted.
+MANUAL_LOAD_NOTICE = os.environ.get("MANUAL_LOAD_NOTICE")
+MANUAL_LOAD_GENOME_VERSION = os.environ.get("MANUAL_LOAD_GENOME_VERSION")
 STAGED_SAMPLE_TYPE_REQUIRED = os.environ.get('STAGED_SAMPLE_TYPE_REQUIRED', '').lower() == 'true'
 CALLSET_BINDING_ENABLED = os.environ.get('CALLSET_BINDING_ENABLED', '').lower() == 'true'
 CALLSET_LOADING_MAINTENANCE = os.environ.get('CALLSET_LOADING_MAINTENANCE', '').lower() == 'true'

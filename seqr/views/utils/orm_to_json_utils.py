@@ -1,4 +1,5 @@
 from collections import defaultdict
+from django.conf import settings
 from django.contrib.postgres.aggregates import ArrayAgg
 from django.db.models import prefetch_related_objects, Count, Value, F, Q, CharField, Case, When, OuterRef, Subquery
 from django.db.models.functions import Concat, Coalesce, NullIf, Lower, Trim, JSONObject
@@ -143,6 +144,10 @@ def get_json_for_current_user(user):
         'isAnalyst': user_is_analyst(user),
         'isPm': user_is_pm(user),
     })
+    if settings.MANUAL_LOAD_NOTICE:
+        user_json['manualLoadNotice'] = settings.MANUAL_LOAD_NOTICE
+    if settings.MANUAL_LOAD_GENOME_VERSION:
+        user_json['manualLoadGenomeVersion'] = settings.MANUAL_LOAD_GENOME_VERSION
     return user_json
 
 
