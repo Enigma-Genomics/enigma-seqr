@@ -11,7 +11,7 @@ from django.http.response import HttpResponse
 from requests.exceptions import ConnectionError as RequestConnectionError
 
 from clickhouse_search.search import delete_clickhouse_project
-from seqr.utils.callset_binding import resolve_callset, sign_validation, validated_callset, verify_identity
+from seqr.utils.callset_binding import resolve_callset, sign_validation, staged_sample_type, validated_callset, verify_identity
 from seqr.utils.communication_utils import send_project_notification
 from seqr.utils.add_data_utils import trigger_data_loading, get_missing_family_samples, get_loaded_individual_ids, trigger_delete_families_search
 from seqr.utils.logging_utils import SeqrLogger
@@ -204,13 +204,38 @@ def loading_vcfs(request):
     })
 
 
+def _check_staged_type(identity, request_json):
+    if settings.STAGED_SAMPLE_TYPE_REQUIRED:
+        if not identity:
+            raise ValueError('A staged VCF with a verified sample type is required.')
+        expected = staged_sample_type(identity)
+        if request_json.get('sampleType') != expected:
+            raise ValueError(f'The selected VCF was staged as {expected}. Select the file again before loading.')
+
+
+@pm_or_data_manager_required
+def callset_sample_type(request):
+    if not settings.STAGED_SAMPLE_TYPE_REQUIRED:
+        return create_json_response({'locked': False})
+    try:
+        path = _callset_path({'filePath': request.GET.get('filePath', '')})
+        _, identity = resolve_callset(path, require_prepared=True)
+        if not identity:
+            raise ValueError('Select a single staged VCF.')
+        return create_json_response({'locked': True, 'sampleType': staged_sample_type(identity)})
+    except ValueError as error:
+        return create_json_response({'error': str(error)}, status=400)
+
+
 @pm_or_data_manager_required
 def validate_callset(request):
     request_json = json.loads(request.body)
     dataset_type = request_json['datasetType'] if anvil_enabled() else None
     source_path = _callset_path(request_json)
     try:
-        resolved_path, identity = resolve_callset(source_path)
+        resolved_path, identity = (resolve_callset(source_path, require_prepared=True) if settings.STAGED_SAMPLE_TYPE_REQUIRED
+                                   else resolve_callset(source_path))
+        _check_staged_type(identity, request_json)
     except ValueError as e:
         return create_json_response({'error': str(e)}, status=400)
     samples = validate_vcf_and_get_samples(
@@ -294,6 +319,7 @@ def load_data(request):
     request_json = json.loads(request.body)
     try:
         callset_path, callset_identity = validated_callset(request_json, request.user, _callset_path(request_json))
+        _check_staged_type(callset_identity, request_json)
     except ValueError as e:
         return create_json_response({'error': str(e)}, status=400)
     vcf_samples = request_json['vcfSamples']

@@ -137,7 +137,7 @@ def _snapshot_legacy_root(identity, client):
     return snapshot
 
 
-def resolve_callset(path, client=None):
+def resolve_callset(path, client=None, require_prepared=False):
     """Resolve an atomic alias binding, or pin a legacy nested unique input."""
     if not enabled_for(path, client):
         return path, None
@@ -187,6 +187,8 @@ def resolve_callset(path, client=None):
         identity = {'vcf': _identity(path, blob), 'index': _identity(path + '.tbi', index_blob) if index_blob else None}
     verify_identity(identity, client)
     if 'seqr_binding' not in metadata and '/' not in relative:
+        if require_prepared:
+            raise ValueError('Re-stage this legacy VCF to record its sample type.')
         identity = _snapshot_legacy_root(identity, client)
         resolved = identity['vcf']['path']
     return resolved, identity
@@ -225,3 +227,19 @@ def validated_callset(request_json, user, path, client=None):
         _fail()
     identity = verify_identity(payload.get('identity'), client)
     return identity['vcf']['path'], identity
+
+
+def staged_sample_type(identity, client=None):
+    """Read the staging receipt for this exact prepared VCF generation."""
+    vcf = identity['vcf']
+    bucket, name = _path(vcf['path'])
+    receipt = (client or storage.Client()).bucket(bucket).get_blob(name + '.staging.json')
+    if receipt is None:
+        raise ValueError('The selected VCF has no staging sample type. Re-stage the file before loading.')
+    if not receipt.size or receipt.size > 4096:
+        raise ValueError('Invalid VCF staging receipt.')
+    data = json.loads(receipt.download_as_bytes(if_generation_match=receipt.generation))
+    if (not isinstance(data, dict) or data.get('vcf') != vcf['path']
+            or data.get('generation') != vcf['generation'] or data.get('sample_type') not in ('WES', 'WGS')):
+        raise ValueError('The staging receipt has a missing sample type or identifies a different VCF.')
+    return data['sample_type']

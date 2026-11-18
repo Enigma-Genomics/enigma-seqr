@@ -2,8 +2,9 @@ import React from 'react'
 import PropTypes from 'prop-types'
 import { connect } from 'react-redux'
 import queryString from 'query-string'
-import { FormSpy } from 'react-final-form'
+import { FormSpy, useField, useForm } from 'react-final-form'
 
+import { HttpRequestHelper } from 'shared/utils/httpRequestHelper'
 import { getUser } from 'redux/selectors'
 import { validators } from 'shared/components/form/FormHelpers'
 import FormWizard from 'shared/components/form/FormWizard'
@@ -52,6 +53,36 @@ const LoadedProjectOptions = props => (
 const FILE_PATH_FIELD = {
   name: 'filePath',
   validate: validators.required,
+}
+
+const StagedSampleType = (props) => {
+  const form = useForm()
+  const { input: { value: filePath } } = useField('filePath', { subscription: { value: true } })
+  const [result, setResult] = React.useState({})
+  React.useEffect(() => {
+    let active = true
+    form.change('sampleType', undefined)
+    if (filePath) {
+      new HttpRequestHelper('/api/data_management/callset_sample_type', (data) => {
+        if (active) {
+          setResult({ ...data, filePath })
+          if (data.locked) form.change('sampleType', data.sampleType)
+        }
+      }).get({ filePath }).catch((error) => {
+        if (active) setResult({ filePath, error: error.message })
+      })
+    }
+    return () => { active = false }
+  }, [filePath, form])
+  if (filePath && result.filePath === filePath && result.locked === false) return <ButtonRadioGroup {...props} />
+  const status = result.filePath === filePath ? result.error || result.sampleType : 'Checking staging JSON…'
+  return (
+    <div aria-live="polite">
+      <strong>Sample Type</strong>
+      {' '}
+      {filePath ? status : 'Select a VCF'}
+    </div>
+  )
 }
 
 const CALLSET_PAGE_FIELDS = [
@@ -111,7 +142,7 @@ const CALLSET_PAGE = {
       validationErrorMessage: 'No VCFs found in the loading datasets directory',
       ...FILE_PATH_FIELD,
     },
-    ...CALLSET_PAGE_FIELDS,
+    ...CALLSET_PAGE_FIELDS.map(field => (field.name === 'sampleType' ? { ...field, component: StagedSampleType } : field)),
   ],
   submitUrl: '/api/data_management/validate_callset',
 }
