@@ -1,9 +1,11 @@
+import asyncio
 import traceback
 
 import aiofiles
 import aiofiles.os
 from aiohttp import web, web_exceptions
 
+from loading_pipeline.api.queue_receipt import QueueFull, RequestConflict, publish_once
 from loading_pipeline.api.model import (
     DeleteFamiliesRequest,
     LoadingPipelineRequest,
@@ -43,7 +45,8 @@ async def _enqueue_request(
     if not request.body_exists:
         raise web.HTTPUnprocessableEntity
 
-    if is_queue_full():
+    key = request.headers.get('Idempotency-Key') if model_cls is LoadingPipelineRequest else None
+    if key is None and is_queue_full():
         return web.json_response(
             f'Pipeline queue is full. Please try again later. (limit={Env.LOADING_QUEUE_LIMIT})',
             status=web_exceptions.HTTPConflict.status_code,
@@ -53,6 +56,20 @@ async def _enqueue_request(
         model_instance = model_cls.model_validate(await request.json())
     except ValueError as e:
         raise web.HTTPBadRequest from e
+
+    if key is not None:
+        try:
+            run_id = await asyncio.to_thread(
+                publish_once, loading_pipeline_queue_dir(), key, model_instance.model_dump_json(),
+                new_run_id, loading_pipeline_queue_path, Env.LOADING_QUEUE_LIMIT,
+            )
+        except QueueFull:
+            return web.json_response({'error': 'Pipeline queue is full'}, status=409)
+        except RequestConflict as error:
+            return web.json_response({'error': str(error)}, status=409)
+        except ValueError as error:
+            raise web.HTTPBadRequest(reason=str(error)) from error
+        return web.json_response({'run_id': run_id}, status=202)
 
     queue_path = loading_pipeline_queue_path(new_run_id())
     async with aiofiles.open(queue_path, 'w') as f:

@@ -93,7 +93,8 @@ def trigger_rebuild_gt_stats(project, user):
 def trigger_data_loading(projects: list[Project], individual_ids: list[int], sample_type: str, dataset_type: str,
                          genome_version: str, data_path: str, user: User, raise_error: bool = False, skip_expect_tdr_metrics: bool = True,
                          skip_check_sex_and_relatedness: bool = True, validations_to_skip: list[str] = None, vcf_sample_id_map=None,
-                         success_message: str = None,  error_message: str = None, success_slack_channel: str = SEQR_SLACK_LOADING_NOTIFICATION_CHANNEL):
+                         success_message: str = None,  error_message: str = None, success_slack_channel: str = SEQR_SLACK_LOADING_NOTIFICATION_CHANNEL,
+                         load_request_key: str = None):
     variables = {
         'projects_to_run': sorted([p.guid for p in projects]) if projects else None,
         'dataset_type': dataset_type,
@@ -110,6 +111,17 @@ def trigger_data_loading(projects: list[Project], individual_ids: list[int], sam
     file_path = _get_pedigree_path(genome_version, sample_type, dataset_type)
     _upload_data_loading_files(individual_ids, vcf_sample_id_map or {}, user, file_path, raise_error)
     _write_gene_id_file(user)
+
+    if load_request_key is not None:
+        response = requests.post(
+            f'{PIPELINE_RUNNER_SERVER}/loading_pipeline_enqueue', json=variables,
+            headers={'Idempotency-Key': load_request_key}, timeout=60,
+        )
+        response.raise_for_status()
+        receipt = response.json()
+        if not isinstance(receipt, dict) or not isinstance(receipt.get('run_id'), str) or not receipt['run_id']:
+            raise ValueError('Pipeline runner did not acknowledge the load request with a run ID')
+        return receipt['run_id']
 
     error = _enqueue_pipeline_request('loading_pipeline', variables, user, raise_error, log_error=False)
     if error:
